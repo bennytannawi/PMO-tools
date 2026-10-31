@@ -5,16 +5,30 @@ Create a simple PMO tools similar to Asana for the team
 - **Login page** (`index.html`) — email + password sign-in, show/hide password,
   "Keep me signed in", inline validation, loading state, and a 60-second
   lockout after 5 failed attempts.
-- **Dashboard placeholder** (`dashboard.html`) — protected page that redirects
-  to login when signed out; shows the signed-in user and a Sign out button.
+- **Workspaces** (`workspaces.html`) — the landing page after login. Lists all
+  workspaces (tasks, sections, % completed) and a **New workspace** button that
+  asks for the workspace name (required, max 60 chars, no duplicate names).
+- **Workspace board** (`workspace.html?id=…`) — kanban with default sections
+  **To do → In progress → Review → Completed**, plus an **Add section** column
+  for custom sections (rename/delete via the ⋯ menu; tasks in a deleted section
+  move to To do). Tasks: add, edit name/description, delete, drag & drop between
+  or within sections, or move via the task dialog (works on phones).
+- `dashboard.html` now just redirects to `workspaces.html` for old links.
 
 ## Project structure
 ```
 index.html              Login page
-dashboard.html          Protected landing page (placeholder)
-assets/css/login.css    Styles (light + dark mode, mobile responsive)
-assets/js/auth.js       Auth service — the only file that talks to the backend
+workspaces.html         Workspaces list + create (landing page after login)
+workspace.html          Kanban board for one workspace
+dashboard.html          Redirect to workspaces.html (kept for old links)
+assets/css/login.css    Login styles + shared colour tokens (light/dark)
+assets/css/app.css      Styles for signed-in pages
+assets/js/auth.js       Auth service — the only file that talks to the auth backend
+assets/js/store.js      Data store — the only file that reads/writes workspace data
+assets/js/common.js     Shared helpers (top bar, toast, element builder)
 assets/js/login.js      Login form behaviour
+assets/js/workspaces.js Workspaces page behaviour
+assets/js/board.js      Kanban board behaviour
 ```
 
 ## Run locally
@@ -45,6 +59,16 @@ The page will `POST {email, password}` to `/auth/login` and expects:
 ```
 Then delete the `DEMO_USERS` list. Password hashing, rate limiting and
 account management must live on the server.
+
+## Where data is stored (important)
+In demo mode, workspaces and tasks are saved in **this browser's localStorage**.
+Each person/browser sees only their own data — the team does **not** share
+boards yet, and clearing browser data deletes them. To share across the team,
+connect a backend and replace the method bodies in `assets/js/store.js`
+(`listWorkspaces`, `createWorkspace`, `getWorkspace`, `addSection`,
+`renameSection`, `deleteSection`, `addTask`, `updateTask`, `moveTask`,
+`deleteTask`) with API calls. The pages only call these async methods, so no
+page code needs to change.
 
 ## Protecting a new page
 ```html

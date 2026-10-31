@@ -22,7 +22,7 @@
     SESSION_HOURS_DEFAULT: 8,     // session length without "Keep me signed in"
     SESSION_DAYS_REMEMBER: 14,    // session length with "Keep me signed in"
     LOGIN_PAGE: "index.html",
-    HOME_PAGE: "dashboard.html",
+    HOME_PAGE: "workspaces.html",
   };
 
   // Demo accounts — replace or remove once a real backend is connected.
@@ -135,7 +135,7 @@
     requireAuth() {
       const session = readSession();
       if (!session) {
-        const next = encodeURIComponent(global.location.pathname.split("/").pop() || CONFIG.HOME_PAGE);
+        const next = encodeURIComponent((global.location.pathname.split("/").pop() || CONFIG.HOME_PAGE) + global.location.search);
         global.location.replace(CONFIG.LOGIN_PAGE + "?next=" + next);
         return null;
       }

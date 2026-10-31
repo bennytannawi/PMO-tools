@@ -25,10 +25,10 @@
     return;
   }
 
-  // Only allow redirects to local .html pages (prevents open-redirects).
+  // Only allow redirects to local .html pages, optionally with a simple query (prevents open-redirects).
   function nextPage() {
     const next = new URLSearchParams(window.location.search).get("next");
-    return next && /^[\w-]+\.html$/.test(next) ? next : Auth.config.HOME_PAGE;
+    return next && /^[\w-]+\.html(\?[\w=&%.-]*)?$/.test(next) ? next : Auth.config.HOME_PAGE;
   }
 
   function setFieldError(input, message) {

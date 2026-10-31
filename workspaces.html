@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workspaces · PMO Tools</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/login.css" />
+  <link rel="stylesheet" href="assets/css/app.css" />
+  <script src="assets/js/auth.js"></script>
+  <script>window.__session = Auth.requireAuth();</script>
+</head>
+<body class="app">
+  <header class="topbar">
+    <a class="logo" href="workspaces.html">
+      <span class="logo__mark">P</span>
+      <span class="logo__name"><span class="logo__text">PMO Tools</span><span class="logo__sub">Strategic Planning and Analysis</span></span>
+    </a>
+    <div class="topbar__user" id="topbar-user"></div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1>Workspaces</h1>
+        <p id="ws-subtitle">Pick a workspace to open its board, or create a new one.</p>
+      </div>
+      <button type="button" class="button button--primary" id="new-ws-btn">
+        <span class="button__plus" aria-hidden="true">+</span> New workspace
+      </button>
+    </div>
+
+    <section aria-label="Your workspaces">
+      <div class="ws-grid" id="ws-grid"></div>
+      <div class="empty" id="ws-empty" hidden>
+        <h2>No workspaces yet</h2>
+        <p>Create a workspace for each team, project or initiative.</p>
+        <button type="button" class="button button--primary" id="empty-new-btn">
+          <span class="button__plus" aria-hidden="true">+</span> Create your first workspace
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- New workspace dialog -->
+  <dialog id="ws-dialog" aria-labelledby="ws-dialog-title">
+    <form method="dialog" class="dialog__body" id="ws-form" novalidate>
+      <h2 id="ws-dialog-title">New workspace</h2>
+      <p>It starts with To do, In progress, Review and Completed sections.</p>
+      <div class="field">
+        <label for="ws-name">Workspace name</label>
+        <input id="ws-name" name="name" type="text" maxlength="60" autocomplete="off"
+               placeholder="e.g. FY2027 Business Plan" required />
+        <p class="field__error" id="ws-name-error"></p>
+        <div class="counter" id="ws-name-counter">0 / 60</div>
+      </div>
+      <div class="dialog__actions">
+        <button type="button" class="button button--ghost" id="ws-cancel">Cancel</button>
+        <button type="submit" class="button button--primary" id="ws-create">Create workspace</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/workspaces.js"></script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workspace · PMO Tools</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/login.css" />
+  <link rel="stylesheet" href="assets/css/app.css" />
+  <script src="assets/js/auth.js"></script>
+  <script>window.__session = Auth.requireAuth();</script>
+</head>
+<body class="app">
+  <header class="topbar">
+    <a class="logo" href="workspaces.html">
+      <span class="logo__mark">P</span>
+      <span class="logo__name"><span class="logo__text">PMO Tools</span><span class="logo__sub">Strategic Planning and Analysis</span></span>
+    </a>
+    <div class="topbar__user" id="topbar-user"></div>
+  </header>
+
+  <div class="board-head">
+    <div>
+      <div class="crumbs"><a href="workspaces.html">← Workspaces</a></div>
+      <h1 id="ws-title">Loading…</h1>
+    </div>
+    <div class="board-head__stats" id="ws-stats"></div>
+  </div>
+
+  <main class="board" id="board" aria-label="Kanban board"></main>
+
+  <!-- Task details dialog (edit, move between sections, delete) -->
+  <dialog id="task-dialog" aria-labelledby="task-dialog-title">
+    <form method="dialog" class="dialog__body" id="task-form" novalidate>
+      <h2 id="task-dialog-title">Task details</h2>
+      <p>Edit the task or move it to another section.</p>
+      <div class="field">
+        <label for="task-title">Task name</label>
+        <input id="task-title" type="text" maxlength="200" autocomplete="off" required />
+        <p class="field__error" id="task-title-error"></p>
+      </div>
+      <div class="field">
+        <label for="task-desc">Description</label>
+        <textarea id="task-desc" maxlength="5000" placeholder="Add details, links or acceptance criteria"></textarea>
+      </div>
+      <div class="field">
+        <label for="task-section">Section</label>
+        <select id="task-section"></select>
+      </div>
+      <div class="dialog__actions">
+        <button type="button" class="button button--danger" id="task-delete">Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="button button--ghost" id="task-cancel">Cancel</button>
+        <button type="submit" class="button button--primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/board.js"></script>
+</body>
+</html>
