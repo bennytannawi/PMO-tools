@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in · PMO Tools</title>
+  <meta name="description" content="Sign in to PMO Tools — project, task and portfolio tracking for the team." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/login.css" />
+</head>
+<body>
+  <main class="layout">
+    <!-- Brand panel (hidden on small screens) -->
+    <section class="brand" aria-hidden="true">
+      <div class="brand__inner">
+        <div class="logo logo--light">
+          <span class="logo__mark">P</span>
+          <span class="logo__text">PMO Tools</span>
+        </div>
+        <h1 class="brand__headline">Every project, owner and deadline — in one place.</h1>
+        <ul class="brand__points">
+          <li>Track initiatives from plan to delivery</li>
+          <li>See who owns what, and what is at risk</li>
+          <li>Report progress to management without spreadsheets</li>
+        </ul>
+        <div class="brand__board">
+          <div class="board-col">
+            <span class="board-col__title">To do</span>
+            <span class="card"></span><span class="card card--short"></span>
+          </div>
+          <div class="board-col">
+            <span class="board-col__title">In progress</span>
+            <span class="card card--accent"></span><span class="card"></span>
+          </div>
+          <div class="board-col">
+            <span class="board-col__title">Done</span>
+            <span class="card card--done"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Login form -->
+    <section class="panel">
+      <div class="panel__inner">
+        <div class="logo logo--mobile">
+          <span class="logo__mark">P</span>
+          <span class="logo__text">PMO Tools</span>
+        </div>
+
+        <h2 class="panel__title">Sign in</h2>
+        <p class="panel__subtitle">Welcome back. Enter your work account details.</p>
+
+        <div id="form-alert" class="alert" role="alert" hidden></div>
+
+        <form id="login-form" novalidate>
+          <div class="field">
+            <label for="email">Work email</label>
+            <input id="email" name="email" type="email" autocomplete="username"
+                   placeholder="name@company.com" required />
+            <p class="field__error" id="email-error"></p>
+          </div>
+
+          <div class="field">
+            <div class="field__row">
+              <label for="password">Password</label>
+              <a href="#" class="link" id="forgot-link">Forgot password?</a>
+            </div>
+            <div class="password">
+              <input id="password" name="password" type="password" autocomplete="current-password"
+                     placeholder="Enter your password" required minlength="8" />
+              <button type="button" class="password__toggle" id="toggle-password"
+                      aria-label="Show password" aria-pressed="false">Show</button>
+            </div>
+            <p class="field__error" id="password-error"></p>
+          </div>
+
+          <label class="checkbox">
+            <input type="checkbox" id="remember" name="remember" />
+            <span>Keep me signed in</span>
+          </label>
+
+          <button type="submit" class="btn" id="submit-btn">
+            <span class="btn__label">Sign in</span>
+            <span class="btn__spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+
+        <p class="panel__footer">
+          Don't have access yet? <a href="#" class="link" id="request-access-link">Request access</a> from your PMO admin.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script src="assets/js/auth.js"></script>
+  <script src="assets/js/login.js"></script>
+</body>
+</html>

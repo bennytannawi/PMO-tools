@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard · PMO Tools</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/login.css" />
+  <style>
+    .topbar { display:flex; justify-content:space-between; align-items:center; padding:16px 24px; background:var(--surface); border-bottom:1px solid var(--border); }
+    .topbar__user { display:flex; align-items:center; gap:14px; font-size:14px; color:var(--text-muted); }
+    .topbar__user button { height:36px; padding:0 14px; border:1px solid var(--border); border-radius:8px; background:transparent; color:var(--text); font:inherit; cursor:pointer; }
+    .content { max-width:960px; margin:40px auto; padding:0 24px; }
+    .content h1 { font-size:24px; margin:0 0 8px; }
+    .content p { color:var(--text-muted); }
+  </style>
+  <script src="assets/js/auth.js"></script>
+  <script>window.__session = Auth.requireAuth();</script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo"><span class="logo__mark">P</span><span class="logo__text">PMO Tools</span></div>
+    <div class="topbar__user">
+      <span id="user-label"></span>
+      <button type="button" id="logout-btn">Sign out</button>
+    </div>
+  </header>
+  <main class="content">
+    <h1 id="greeting">Welcome</h1>
+    <p>You're signed in. Projects, tasks and boards will live here.</p>
+  </main>
+  <script>
+    (function () {
+      var s = window.__session;
+      if (!s) return;
+      document.getElementById("user-label").textContent = s.user.name + " · " + s.user.role;
+      document.getElementById("greeting").textContent = "Welcome, " + s.user.name.split(" ")[0];
+      document.getElementById("logout-btn").addEventListener("click", function () { Auth.logout(); });
+    })();
+  </script>
+</body>
+</html>
