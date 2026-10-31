@@ -137,7 +137,7 @@
         requestAnimationFrame(() => btn.classList.add("is-dragging"));
       },
       ondragend: () => { dragId = null; btn.classList.remove("is-dragging"); clearMarkers(); },
-    }, [el("span", { class: "task__title", text: task.title })]);
+    }, [el("span", { class: "task__top" }, [el("span", { class: "task__title", text: task.title }), picChip(task.assignee)])]);
     if (task.description) {
       const d = task.description.length > 90 ? task.description.slice(0, 90) + "…" : task.description;
       btn.append(el("span", { class: "task__desc", text: d }));
@@ -153,14 +153,23 @@
     const nC = (task.comments || []).length;
     if (nC) badges.push(el("span", { class: "badge", title: nC + (nC === 1 ? " comment" : " comments"), text: "💬 " + nC }));
     if (task.driveUrl) badges.push(el("span", { class: "badge badge--drive", title: "Google Drive folder linked", text: "Drive" }));
-    const pic = task.assignee
-      ? el("span", { class: "avatar avatar--xs", style: "background:" + UI.colorFor(task.assignee.name) + ";color:#fff",
-          title: "PIC: " + task.assignee.name, text: UI.initials(task.assignee.name) })
-      : null;
-    if (badges.length || pic) {
-      btn.append(el("span", { class: "task__foot" }, [el("span", { class: "task__badges" }, badges), pic]));
-    }
+    if (badges.length) btn.append(el("span", { class: "task__foot" }, [el("span", { class: "task__badges" }, badges)]));
     return btn;
+  }
+
+  /** PIC shown beside the card title: avatar + first name, or "?" when nobody is assigned. */
+  function picChip(assignee) {
+    if (!assignee) {
+      return el("span", { class: "pic pic--none", title: "No PIC assigned yet", "aria-label": "No PIC assigned yet" }, [
+        el("span", { class: "avatar avatar--xs avatar--none", "aria-hidden": "true", text: "?" }),
+      ]);
+    }
+    const first = assignee.name.trim().split(/\s+/)[0];
+    return el("span", { class: "pic", title: "PIC: " + assignee.name, "aria-label": "PIC: " + assignee.name }, [
+      el("span", { class: "avatar avatar--xs", style: "background:" + UI.colorFor(assignee.name) + ";color:#fff", "aria-hidden": "true",
+        text: UI.initials(assignee.name) }),
+      el("span", { class: "pic__name", "aria-hidden": "true", text: first }),
+    ]);
   }
 
   function addTaskForm(section) {

@@ -231,6 +231,19 @@ textarea:focus, select:focus { outline: none; border-color: var(--primary); box-
 .avatar--xs { width: 22px; height: 22px; font-size: 10px; flex: none; }
 .avatar--more { background: var(--col-bg); color: var(--text-muted); }
 
+/* ---------- Task card: title + PIC ---------- */
+.task__top { display: flex; align-items: flex-start; gap: 8px; }
+.task__top .task__title { flex: 1; min-width: 0; }
+.pic {
+  display: inline-flex; align-items: center; gap: 5px; flex: none; max-width: 110px;
+  padding: 2px 8px 2px 2px; border-radius: 12px; background: var(--col-bg);
+  font-size: 12px; font-weight: 500; color: var(--text);
+}
+.pic__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pic--none { padding: 2px; }
+.avatar--none { background: transparent; color: var(--text-muted); border: 1.5px dashed var(--text-muted); font-size: 12px; font-weight: 700; }
+.column[data-done="true"] .pic { opacity: .7; }
+
 /* ---------- Task card footer ---------- */
 .task__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
 .task__badges { display: flex; flex-wrap: wrap; gap: 6px; }
