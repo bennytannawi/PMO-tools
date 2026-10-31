@@ -15,7 +15,11 @@ Create a simple PMO tools similar to Asana for the team
   or within sections, or move via the task dialog (works on phones).
 - **Task details** (click a card) — two-panel view with:
   - **Project** — read-only, always the board (workspace) name.
-  - **PIC / assigned to** — pick from the workspace members; shown as an avatar on the card.
+  - **PIC / assigned to** — pick from the workspace members. On the board, each card shows
+    the PIC's avatar and first name beside the title (**?** if nobody is assigned); tap it
+    to open a dropdown of workspace members and assign/change the PIC directly.
+  - **Due date** — chosen from a calendar picker (typing is disabled). The card shows
+    📅 with the date: red when overdue, amber when due today/tomorrow.
   - **Description**.
   - **Subtasks / checklist** — add, tick, rename, delete; progress bar, and `☑ 2/5` on the card.
   - **Comments** — workspace members only; each shows author and a date-time stamp

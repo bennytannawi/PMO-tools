@@ -57,6 +57,23 @@
             <input id="task-title" type="text" maxlength="200" autocomplete="off" required />
             <p class="field__error" id="task-title-error"></p>
           </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="task-pic">PIC / assigned to</label>
+              <select id="task-pic"></select>
+              <p class="hint" id="task-pic-hint"></p>
+            </div>
+            <div class="field">
+              <label for="task-due">Due date</label>
+              <div class="due-input">
+                <input id="task-due" type="date" aria-describedby="task-due-hint" />
+              </div>
+              <div class="due-foot">
+                <p class="hint" id="task-due-hint">Tap to pick from the calendar.</p>
+                <button type="button" class="link-btn" id="task-due-clear">Clear date</button>
+              </div>
+            </div>
+          </div>
           <div class="field">
             <label for="task-desc">Description</label>
             <textarea id="task-desc" maxlength="5000" placeholder="Add details, links or acceptance criteria"></textarea>
@@ -89,11 +106,6 @@
           <div class="field">
             <label for="task-section">Section</label>
             <select id="task-section"></select>
-          </div>
-          <div class="field">
-            <label for="task-pic">PIC / assigned to</label>
-            <select id="task-pic"></select>
-            <p class="hint" id="task-pic-hint"></p>
           </div>
           <div class="field">
             <span class="label" id="drive-label">Google Drive folder</span>

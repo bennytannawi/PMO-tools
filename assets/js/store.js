@@ -96,6 +96,7 @@
       if (!Array.isArray(t.comments)) t.comments = [];
       if (!("assignee" in t)) t.assignee = null;
       if (!("driveUrl" in t)) t.driveUrl = "";
+      if (!("dueDate" in t)) t.dueDate = "";
     }));
     return ws;
   }
@@ -261,7 +262,7 @@
         if (!t) throw new Error("Enter a task name.");
         const task = {
           id: uid("task"), title: t, description: "", createdAt: Date.now(), createdBy: createdBy || "",
-          assignee: null, subtasks: [], comments: [], driveUrl: "",
+          assignee: null, dueDate: "", subtasks: [], comments: [], driveUrl: "",
         };
         s.tasks.push(task);
         return task;
@@ -278,6 +279,11 @@
           task.title = t;
         }
         if ("description" in fields) task.description = String(fields.description || "").slice(0, 5000);
+        if ("dueDate" in fields) {
+          const d = String(fields.dueDate || "");
+          if (d && (!/^\d{4}-\d{2}-\d{2}$/.test(d) || isNaN(new Date(d + "T00:00:00")))) throw new Error("Pick a valid due date.");
+          task.dueDate = d;
+        }
         if ("assignee" in fields) {
           if (!fields.assignee) task.assignee = null;
           else {

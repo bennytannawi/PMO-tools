@@ -70,7 +70,7 @@
 
   function column(section, color) {
     const cards = el("div", { class: "column__cards", "data-section": section.id },
-      section.tasks.map((t) => taskCard(t)));
+      section.tasks.map((t) => taskCard(t, section)));
     wireDrop(cards, section.id);
 
     return el("section", { class: "column", style: "--dot:" + color, "data-done": String(!!section.isDone), "aria-label": section.name }, [
@@ -126,24 +126,30 @@
     ]);
   }
 
-  function taskCard(task) {
-    const btn = el("button", {
-      type: "button", class: "task", draggable: "true", "data-task": task.id,
-      onclick: () => openTask(task.id),
+  function taskCard(task, section) {
+    // A div (not a button) so the PIC chip inside it can be its own button.
+    const card = el("div", {
+      class: "task", role: "button", tabindex: "0", draggable: "true", "data-task": task.id,
+      "aria-label": "Open task " + task.title,
+      onclick: (e) => { if (!e.target.closest(".pic")) openTask(task.id); },
+      onkeydown: (e) => { if (e.target === card && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openTask(task.id); } },
       ondragstart: (e) => {
         dragId = task.id;
+        closePicMenu();
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", task.id);
-        requestAnimationFrame(() => btn.classList.add("is-dragging"));
+        requestAnimationFrame(() => card.classList.add("is-dragging"));
       },
-      ondragend: () => { dragId = null; btn.classList.remove("is-dragging"); clearMarkers(); },
-    }, [el("span", { class: "task__top" }, [el("span", { class: "task__title", text: task.title }), picChip(task.assignee)])]);
+      ondragend: () => { dragId = null; card.classList.remove("is-dragging"); clearMarkers(); },
+    }, [el("span", { class: "task__top" }, [el("span", { class: "task__title", text: task.title }), picChip(task)])]);
     if (task.description) {
       const d = task.description.length > 90 ? task.description.slice(0, 90) + "…" : task.description;
-      btn.append(el("span", { class: "task__desc", text: d }));
+      card.append(el("span", { class: "task__desc", text: d }));
     }
 
     const badges = [];
+    const due = dueBadge(task.dueDate, section && section.isDone);
+    if (due) badges.push(due);
     const subs = task.subtasks || [];
     if (subs.length) {
       const doneN = subs.filter((x) => x.done).length;
@@ -153,24 +159,80 @@
     const nC = (task.comments || []).length;
     if (nC) badges.push(el("span", { class: "badge", title: nC + (nC === 1 ? " comment" : " comments"), text: "💬 " + nC }));
     if (task.driveUrl) badges.push(el("span", { class: "badge badge--drive", title: "Google Drive folder linked", text: "Drive" }));
-    if (badges.length) btn.append(el("span", { class: "task__foot" }, [el("span", { class: "task__badges" }, badges)]));
-    return btn;
+    if (badges.length) card.append(el("span", { class: "task__foot" }, [el("span", { class: "task__badges" }, badges)]));
+    return card;
   }
 
-  /** PIC shown beside the card title: avatar + first name, or "?" when nobody is assigned. */
-  function picChip(assignee) {
-    if (!assignee) {
-      return el("span", { class: "pic pic--none", title: "No PIC assigned yet", "aria-label": "No PIC assigned yet" }, [
-        el("span", { class: "avatar avatar--xs avatar--none", "aria-hidden": "true", text: "?" }),
-      ]);
-    }
-    const first = assignee.name.trim().split(/\s+/)[0];
-    return el("span", { class: "pic", title: "PIC: " + assignee.name, "aria-label": "PIC: " + assignee.name }, [
-      el("span", { class: "avatar avatar--xs", style: "background:" + UI.colorFor(assignee.name) + ";color:#fff", "aria-hidden": "true",
-        text: UI.initials(assignee.name) }),
-      el("span", { class: "pic__name", "aria-hidden": "true", text: first }),
-    ]);
+  /* ---------- Due date ---------- */
+  function parseDay(iso) { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); }
+  function formatDay(iso, withYear) {
+    const opts = { day: "numeric", month: "short" };
+    if (withYear || parseDay(iso).getFullYear() !== new Date().getFullYear()) opts.year = "numeric";
+    return parseDay(iso).toLocaleDateString("en-GB", opts);
   }
+  function daysUntil(iso) {
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    return Math.round((parseDay(iso) - t) / 86400000);
+  }
+  function dueBadge(iso, isDone) {
+    if (!iso) return null;
+    const n = daysUntil(iso);
+    let cls = "badge badge--due", note = "";
+    if (!isDone && n < 0) { cls += " badge--overdue"; note = " · overdue"; }
+    else if (!isDone && n <= 1) { cls += " badge--soon"; note = n === 0 ? " · today" : " · tomorrow"; }
+    return el("span", { class: cls, title: "Due " + formatDay(iso, true) + note, text: "📅 " + formatDay(iso) });
+  }
+
+  /* ---------- PIC on the card (tap to assign) ---------- */
+  function picChip(task) {
+    const a = task.assignee;
+    const chip = el("button", {
+      type: "button", class: "pic" + (a ? "" : " pic--none"), "aria-haspopup": "menu",
+      title: a ? "PIC: " + a.name + " — tap to change" : "No PIC yet — tap to assign",
+      "aria-label": a ? "PIC: " + a.name + ". Change PIC" : "No PIC yet. Assign PIC",
+      onclick: (e) => { e.stopPropagation(); picMenu && picMenu.dataset.task === task.id ? closePicMenu() : openPicMenu(task, chip); },
+    }, a ? [
+      el("span", { class: "avatar avatar--xs", style: "background:" + UI.colorFor(a.name) + ";color:#fff", "aria-hidden": "true", text: UI.initials(a.name) }),
+      el("span", { class: "pic__name", "aria-hidden": "true", text: a.name.trim().split(/\s+/)[0] }),
+    ] : [el("span", { class: "avatar avatar--xs avatar--none", "aria-hidden": "true", text: "?" })]);
+    return chip;
+  }
+
+  let picMenu = null;
+  function closePicMenu() { if (picMenu) { picMenu.remove(); picMenu = null; } }
+
+  function openPicMenu(task, anchor) {
+    closePicMenu();
+    const pick = (member) => { closePicMenu(); run(() => Store.updateTask(ws.id, task.id, { assignee: member })); };
+    const items = [el("div", { class: "pic-menu__title", text: "Assign PIC" })];
+    if (!ws.members.length) items.push(el("p", { class: "pic-menu__empty", text: "No members in this workspace yet." }));
+    ws.members.forEach((m) => {
+      const current = !!task.assignee && Store.samePerson(m, task.assignee);
+      items.push(el("button", { type: "button", role: "menuitemradio", "aria-checked": String(current), class: current ? "is-current" : "",
+        onclick: () => (current ? closePicMenu() : pick(m)) }, [
+        el("span", { class: "avatar avatar--xs", style: "background:" + UI.colorFor(m.name) + ";color:#fff", "aria-hidden": "true", text: UI.initials(m.name) }),
+        el("span", { class: "pic-menu__name", text: m.name }),
+        current ? el("span", { class: "pic-menu__check", "aria-hidden": "true", text: "✓" }) : null,
+      ]));
+    });
+    if (task.assignee) items.push(el("button", { type: "button", role: "menuitem", class: "pic-menu__muted", text: "Remove PIC", onclick: () => pick(null) }));
+    items.push(el("hr"));
+    items.push(el("button", { type: "button", role: "menuitem", class: "pic-menu__muted", text: "＋ Add / manage members",
+      onclick: () => { closePicMenu(); renderMembersDialog(); mDialog.showModal(); } }));
+
+    picMenu = el("div", { class: "pic-menu", role: "menu", "data-task": task.id }, items);
+    document.body.append(picMenu);
+    const r = anchor.getBoundingClientRect(), w = picMenu.offsetWidth, h = picMenu.offsetHeight;
+    const left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8));
+    const top = r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - h - 6) : r.bottom + 6;
+    picMenu.style.left = left + "px"; picMenu.style.top = top + "px";
+    const first = picMenu.querySelector("button"); if (first) first.focus();
+  }
+
+  document.addEventListener("click", (e) => { if (picMenu && !e.target.closest(".pic-menu") && !e.target.closest(".pic")) closePicMenu(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && picMenu) closePicMenu(); });
+  window.addEventListener("resize", closePicMenu);
+  document.addEventListener("scroll", (e) => { if (picMenu && !picMenu.contains(e.target)) closePicMenu(); }, true);
 
   function addTaskForm(section) {
     return inlineForm({
@@ -342,6 +404,8 @@
   const tSection = document.getElementById("task-section");
   const tPic = document.getElementById("task-pic");
   const tPicHint = document.getElementById("task-pic-hint");
+  const tDue = document.getElementById("task-due");
+  const tDueHint = document.getElementById("task-due-hint");
   const tMeta = document.getElementById("task-meta");
   const subList = document.getElementById("sub-list");
   const subInput = document.getElementById("sub-input");
@@ -522,11 +586,31 @@
     subInput.value = "";
     tSection.replaceChildren(...ws.sections.map((s) => el("option", { value: s.id, text: s.name, selected: s.id === section.id })));
     fillPicOptions(task);
+    tDue.value = task.dueDate || "";
+    updateDueHint();
     tMeta.textContent = "Created " + formatStamp(task.createdAt) + (task.createdBy ? " by " + task.createdBy : "");
     renderLive();
     dialog.showModal();
     tTitle.focus();
   }
+
+  /* Due date: chosen from the calendar picker, not typed. */
+  function openDuePicker() { try { tDue.showPicker(); } catch (e) { /* older browsers open it on tap anyway */ } }
+  function updateDueHint() {
+    if (!tDue.value) { tDueHint.textContent = "Tap to pick from the calendar."; return; }
+    const n = daysUntil(tDue.value);
+    tDueHint.textContent = n < 0 ? Math.abs(n) + (n === -1 ? " day" : " days") + " overdue"
+      : n === 0 ? "Due today" : n === 1 ? "Due tomorrow" : "In " + n + " days";
+  }
+  tDue.addEventListener("click", openDuePicker);
+  tDue.addEventListener("keydown", (e) => {
+    if (e.key === "Tab" || e.key === "Escape") return;
+    e.preventDefault();
+    if (e.key === "Backspace" || e.key === "Delete") { tDue.value = ""; updateDueHint(); }
+    else openDuePicker();
+  });
+  tDue.addEventListener("change", updateDueHint);
+  document.getElementById("task-due-clear").addEventListener("click", () => { tDue.value = ""; updateDueHint(); });
 
   document.getElementById("task-cancel").addEventListener("click", () => dialog.close());
   document.getElementById("task-close").addEventListener("click", () => dialog.close());
@@ -540,7 +624,7 @@
     const assignee = tPic.value === "" ? null : ws.members[Number(tPic.value)];
     dialog.close();
     run(async () => {
-      await Store.updateTask(ws.id, id, { title: tTitle.value, description: tDesc.value, assignee });
+      await Store.updateTask(ws.id, id, { title: tTitle.value, description: tDesc.value, assignee, dueDate: tDue.value });
       if (tSection.value !== current.id) await Store.moveTask(ws.id, id, tSection.value);
     });
   });
