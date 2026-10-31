@@ -214,6 +214,102 @@ textarea:focus, select:focus { outline: none; border-color: var(--primary); box-
   font-size: 14px; box-shadow: var(--shadow-lg); z-index: 50; max-width: calc(100vw - 32px);
 }
 
+
+/* ---------- Board head: members ---------- */
+.board-head__right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.members-btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 6px;
+  border: 1px solid var(--border); border-radius: 18px; background: var(--surface); color: var(--text);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.members-btn:hover { border-color: var(--primary); }
+.members-btn:focus-visible { outline: 3px solid var(--primary-soft); }
+.avatars { display: inline-flex; }
+.avatars .avatar { border: 2px solid var(--surface); margin-left: -6px; }
+.avatars .avatar:first-child { margin-left: 0; }
+.avatar--sm { width: 26px; height: 26px; font-size: 11px; flex: none; }
+.avatar--xs { width: 22px; height: 22px; font-size: 10px; flex: none; }
+.avatar--more { background: var(--col-bg); color: var(--text-muted); }
+
+/* ---------- Task card footer ---------- */
+.task__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.task__badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge {
+  font-size: 11px; line-height: 1; padding: 4px 7px; border-radius: 6px;
+  background: var(--col-bg); color: var(--text-muted); font-weight: 500;
+}
+.badge--done { background: rgba(31, 138, 76, .14); color: var(--sec-done); }
+.badge--drive { background: rgba(66, 133, 244, .14); color: #1a73e8; }
+@media (prefers-color-scheme: dark) { .badge--drive { color: #8ab4f8; } }
+
+/* ---------- Task detail dialog ---------- */
+dialog.dialog--wide { width: min(920px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
+.td-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.td-head h2 { margin: 0; }
+.td { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; }
+.td__side { border-left: 1px solid var(--border); padding-left: 24px; }
+.td__meta { font-size: 12px; color: var(--text-muted); margin: 0; }
+.td__note { font-size: 12px; color: var(--text-muted); align-self: center; }
+.field input[readonly] { background: var(--bg); color: var(--text-muted); cursor: default; }
+.hint { font-size: 12px; color: var(--text-muted); margin: 6px 0 0; }
+.hint:empty { display: none; }
+.label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+
+.td-block { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 8px; margin-bottom: 18px; }
+.td-block__head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.td-block h3 { margin: 0; font-size: 15px; }
+.td-block__meta { font-size: 12px; color: var(--text-muted); }
+.td-block .progress { margin-bottom: 8px; }
+
+.checklist { list-style: none; margin: 0 0 8px; padding: 0; }
+.checklist__item { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 6px; }
+.checklist__item:hover { background: var(--bg); }
+.checklist__item input { width: 16px; height: 16px; accent-color: var(--sec-done); flex: none; }
+.checklist__item label { flex: 1; font-size: 14px; word-break: break-word; cursor: pointer; }
+.checklist__item.is-done label { color: var(--text-muted); text-decoration: line-through; }
+.checklist__item .icon-btn { opacity: 0; width: 24px; height: 24px; font-size: 13px; }
+.checklist__item:hover .icon-btn, .checklist__item .icon-btn:focus-visible { opacity: 1; }
+.sub-add, .drive-edit, .member-add__row { display: flex; gap: 8px; }
+.sub-add input, .drive-edit input, .member-add__row input {
+  flex: 1; min-width: 0; height: 32px; padding: 0 10px; font: inherit; font-size: 13px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text);
+}
+.sub-add input:focus, .drive-edit input:focus, .member-add__row input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+.comments { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.comments__empty { font-size: 13px; color: var(--text-muted); }
+.comment, .comment-new { display: flex; gap: 10px; }
+.comment__body { flex: 1; min-width: 0; }
+.comment__head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.comment__head time { color: var(--text-muted); font-size: 12px; }
+.comment__text { margin: 4px 0 0; font-size: 14px; white-space: pre-wrap; word-break: break-word;
+  background: var(--bg); border-radius: 0 10px 10px 10px; padding: 8px 12px; }
+.comment-new__box { flex: 1; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.comment-new__box textarea { min-height: 64px; font-size: 14px; }
+.link-btn { border: 0; background: none; padding: 0; font: inherit; font-size: 12px; color: var(--text-muted); cursor: pointer; margin-left: auto; }
+.link-btn:hover { color: var(--danger); text-decoration: underline; }
+
+.button--drive { width: 100%; background: var(--surface); color: var(--text); border-color: var(--border); margin-bottom: 8px; text-decoration: none; }
+.button--drive:hover { border-color: #4285f4; background: rgba(66, 133, 244, .08); }
+.drive-edit { margin-top: 4px; }
+
+/* Members dialog */
+.member-list { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.member { display: flex; align-items: center; gap: 10px; padding: 6px 4px; }
+.member__who { flex: 1; min-width: 0; }
+.member__name { font-size: 14px; font-weight: 600; }
+.member__email { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+.member-add { border-top: 1px solid var(--border); padding-top: 14px; }
+.member-add h3 { margin: 0 0 8px; font-size: 14px; }
+
+@media (max-width: 720px) {
+  .td { grid-template-columns: 1fr; gap: 0; }
+  .td__side { border-left: 0; padding-left: 0; border-top: 1px solid var(--border); padding-top: 16px; }
+  .td__note { display: none; }
+  .member-add__row { flex-wrap: wrap; }
+  .member-add__row input { flex-basis: 100%; }
+}
+
 @media (max-width: 640px) {
   .topbar { padding: 10px 16px; }
   .topbar__user span.name { display: none; }

@@ -26,34 +26,102 @@
       <div class="crumbs"><a href="workspaces.html">← Workspaces</a></div>
       <h1 id="ws-title">Loading…</h1>
     </div>
-    <div class="board-head__stats" id="ws-stats"></div>
+    <div class="board-head__right">
+      <div class="board-head__stats" id="ws-stats"></div>
+      <button type="button" class="members-btn" id="members-btn" aria-label="Workspace members">
+        <span class="avatars" id="members-avatars"></span>
+        <span>Members</span>
+      </button>
+    </div>
   </div>
 
   <main class="board" id="board" aria-label="Kanban board"></main>
 
-  <!-- Task details dialog (edit, move between sections, delete) -->
-  <dialog id="task-dialog" aria-labelledby="task-dialog-title">
+  <!-- Task details dialog -->
+  <dialog id="task-dialog" class="dialog--wide" aria-labelledby="task-dialog-title">
     <form method="dialog" class="dialog__body" id="task-form" novalidate>
-      <h2 id="task-dialog-title">Task details</h2>
-      <p>Edit the task or move it to another section.</p>
-      <div class="field">
-        <label for="task-title">Task name</label>
-        <input id="task-title" type="text" maxlength="200" autocomplete="off" required />
-        <p class="field__error" id="task-title-error"></p>
+      <div class="td-head">
+        <h2 id="task-dialog-title">Task details</h2>
+        <button type="button" class="icon-btn" id="task-close" aria-label="Close">✕</button>
       </div>
-      <div class="field">
-        <label for="task-desc">Description</label>
-        <textarea id="task-desc" maxlength="5000" placeholder="Add details, links or acceptance criteria"></textarea>
+
+      <div class="td">
+        <div class="td__main">
+          <div class="field">
+            <label for="task-project">Project</label>
+            <input id="task-project" type="text" readonly aria-describedby="task-project-hint" />
+            <p class="hint" id="task-project-hint">Same as the board name.</p>
+          </div>
+          <div class="field">
+            <label for="task-title">Task name</label>
+            <input id="task-title" type="text" maxlength="200" autocomplete="off" required />
+            <p class="field__error" id="task-title-error"></p>
+          </div>
+          <div class="field">
+            <label for="task-desc">Description</label>
+            <textarea id="task-desc" maxlength="5000" placeholder="Add details, links or acceptance criteria"></textarea>
+          </div>
+
+          <section class="td-block" aria-labelledby="sub-title">
+            <div class="td-block__head">
+              <h3 id="sub-title">Subtasks</h3>
+              <span class="td-block__meta" id="sub-progress"></span>
+            </div>
+            <div class="progress" id="sub-bar" hidden><span></span></div>
+            <ul class="checklist" id="sub-list"></ul>
+            <div class="sub-add">
+              <input id="sub-input" type="text" maxlength="200" autocomplete="off" placeholder="Add a subtask or checklist item" aria-label="New subtask" />
+              <button type="button" class="button button--ghost button--sm" id="sub-add">Add</button>
+            </div>
+          </section>
+
+          <section class="td-block" aria-labelledby="cmt-title">
+            <div class="td-block__head">
+              <h3 id="cmt-title">Comments</h3>
+              <span class="td-block__meta" id="cmt-count"></span>
+            </div>
+            <ol class="comments" id="cmt-list"></ol>
+            <div id="cmt-composer"></div>
+          </section>
+        </div>
+
+        <aside class="td__side">
+          <div class="field">
+            <label for="task-section">Section</label>
+            <select id="task-section"></select>
+          </div>
+          <div class="field">
+            <label for="task-pic">PIC / assigned to</label>
+            <select id="task-pic"></select>
+            <p class="hint" id="task-pic-hint"></p>
+          </div>
+          <div class="field">
+            <span class="label" id="drive-label">Google Drive folder</span>
+            <div id="drive-box" aria-labelledby="drive-label"></div>
+          </div>
+          <p class="td__meta" id="task-meta"></p>
+        </aside>
       </div>
-      <div class="field">
-        <label for="task-section">Section</label>
-        <select id="task-section"></select>
-      </div>
+
       <div class="dialog__actions">
         <button type="button" class="button button--danger" id="task-delete">Delete</button>
         <span class="spacer"></span>
+        <span class="td__note">Subtasks, comments and the Drive link save instantly.</span>
         <button type="button" class="button button--ghost" id="task-cancel">Cancel</button>
         <button type="submit" class="button button--primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Workspace members dialog -->
+  <dialog id="members-dialog" aria-labelledby="members-title">
+    <form method="dialog" class="dialog__body" id="members-form" novalidate>
+      <h2 id="members-title">Workspace members</h2>
+      <p>Members can be PIC of a task and can comment.</p>
+      <ul class="member-list" id="member-list"></ul>
+      <div id="member-add"></div>
+      <div class="dialog__actions">
+        <button type="button" class="button button--primary" id="members-done">Done</button>
       </div>
     </form>
   </dialog>

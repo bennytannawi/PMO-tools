@@ -78,7 +78,7 @@
     if (!name) { setError("Enter a workspace name."); nameInput.focus(); return; }
     createBtn.disabled = true;
     try {
-      const ws = await Store.createWorkspace(name, session.user.name);
+      const ws = await Store.createWorkspace(name, session.user);
       dialog.close();
       await render();
       UI.toast("Workspace “" + ws.name + "” created.");

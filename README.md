@@ -13,6 +13,20 @@ Create a simple PMO tools similar to Asana for the team
   for custom sections (rename/delete via the ⋯ menu; tasks in a deleted section
   move to To do). Tasks: add, edit name/description, delete, drag & drop between
   or within sections, or move via the task dialog (works on phones).
+- **Task details** (click a card) — two-panel view with:
+  - **Project** — read-only, always the board (workspace) name.
+  - **PIC / assigned to** — pick from the workspace members; shown as an avatar on the card.
+  - **Description**.
+  - **Subtasks / checklist** — add, tick, rename, delete; progress bar, and `☑ 2/5` on the card.
+  - **Comments** — workspace members only; each shows author and a date-time stamp
+    (e.g. *31 Oct 2026, 11:49 · 5 min ago*). Authors (and admins) can delete their own.
+  - **Google Drive folder** — the PIC pastes the folder link (must be a
+    `https://drive.google.com/` link); everyone sees an *Open Google Drive folder* button.
+    Admins can also set it as a fallback if the PIC is unavailable.
+  - Name, description, section and PIC save with **Save**; subtasks, comments and the
+    Drive link save instantly.
+- **Workspace members** (Members button on the board) — add by name + email, remove
+  (their tasks become unassigned). The workspace creator is the first member.
 - `dashboard.html` now just redirects to `workspaces.html` for old links.
 
 ## Project structure
@@ -60,14 +74,18 @@ The page will `POST {email, password}` to `/auth/login` and expects:
 Then delete the `DEMO_USERS` list. Password hashing, rate limiting and
 account management must live on the server.
 
+> ⚠️ The member-only comment rule and the PIC-only Drive rule are enforced in
+> the browser in demo mode. With a real backend, enforce them on the server too.
+
 ## Where data is stored (important)
 In demo mode, workspaces and tasks are saved in **this browser's localStorage**.
 Each person/browser sees only their own data — the team does **not** share
 boards yet, and clearing browser data deletes them. To share across the team,
 connect a backend and replace the method bodies in `assets/js/store.js`
-(`listWorkspaces`, `createWorkspace`, `getWorkspace`, `addSection`,
-`renameSection`, `deleteSection`, `addTask`, `updateTask`, `moveTask`,
-`deleteTask`) with API calls. The pages only call these async methods, so no
+(`listWorkspaces`, `createWorkspace`, `getWorkspace`, `addMember`,
+`removeMember`, `addSection`, `renameSection`, `deleteSection`, `addTask`,
+`updateTask`, `moveTask`, `deleteTask`, `addSubtask`, `updateSubtask`,
+`deleteSubtask`, `addComment`, `deleteComment`, `setTaskDrive`) with API calls. The pages only call these async methods, so no
 page code needs to change.
 
 ## Protecting a new page
