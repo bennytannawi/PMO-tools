@@ -78,6 +78,16 @@
             <label for="task-desc">Description</label>
             <textarea id="task-desc" maxlength="5000" placeholder="Add details, links or acceptance criteria"></textarea>
           </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="task-section">Section</label>
+              <select id="task-section"></select>
+            </div>
+            <div class="field">
+              <span class="label" id="drive-label">Google Drive folder</span>
+              <div id="drive-box" aria-labelledby="drive-label"></div>
+            </div>
+          </div>
 
           <section class="td-block" aria-labelledby="sub-title">
             <div class="td-block__head">
@@ -100,19 +110,9 @@
             <ol class="comments" id="cmt-list"></ol>
             <div id="cmt-composer"></div>
           </section>
+          <p class="td__meta" id="task-meta"></p>
         </div>
 
-        <aside class="td__side">
-          <div class="field">
-            <label for="task-section">Section</label>
-            <select id="task-section"></select>
-          </div>
-          <div class="field">
-            <span class="label" id="drive-label">Google Drive folder</span>
-            <div id="drive-box" aria-labelledby="drive-label"></div>
-          </div>
-          <p class="td__meta" id="task-meta"></p>
-        </aside>
       </div>
 
       <div class="dialog__actions">
