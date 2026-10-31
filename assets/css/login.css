@@ -104,7 +104,10 @@ body {
   display: grid; place-items: center;
   background: var(--primary); color: #fff; font-size: 17px;
 }
+.logo__name { display: flex; flex-direction: column; line-height: 1.15; }
+.logo__sub { font-size: 12px; font-weight: 500; color: var(--text-muted); letter-spacing: .01em; }
 .logo--light .logo__mark { background: #fff; color: var(--brand-bg); }
+.logo--light .logo__sub { color: rgba(255, 255, 255, 0.7); }
 .logo--mobile { display: none; margin-bottom: 28px; }
 
 /* ---------- Form panel ---------- */
