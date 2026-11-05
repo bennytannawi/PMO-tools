@@ -724,12 +724,8 @@
   }
 
   /* Google Drive folder */
-  /** PIC currently chosen in the dropdown (may not be saved yet). */
-  function chosenPic() { return tPic.value === "" ? null : ws.members[Number(tPic.value)] || null; }
-
   function renderDrive(task) {
-    const pic = chosenPic();
-    const canEdit = !!pic && (Store.samePerson(pic, me) || me.role === "admin");
+    const canEdit = Store.canSetDrive(ws, me);
     const nodes = [];
 
     if (task.driveUrl) {
@@ -738,47 +734,32 @@
       ]));
     }
 
+    if (!canEdit) {
+      if (!task.driveUrl) nodes.push(el("p", { class: "hint", text: "No folder linked yet." }));
+      nodes.push(el("p", { class: "hint", text: "Only workspace members can add or change this link." }));
+      driveBox.replaceChildren(...nodes);
+      return;
+    }
+
     const input = el("input", { type: "url", placeholder: "Paste link: https://drive.google.com/drive/folders/…", value: task.driveUrl || "",
-      "aria-label": "Google Drive folder link", autocomplete: "off", disabled: !canEdit });
+      "aria-label": "Google Drive folder link", autocomplete: "off" });
     const err = el("p", { class: "field__error" });
-    const btn = el("button", { type: "button", class: "button button--ghost button--sm", text: task.driveUrl ? "Update" : "Link", disabled: !canEdit });
+    const btn = el("button", { type: "button", class: "button button--ghost button--sm", text: task.driveUrl ? "Update" : "Link" });
     nodes.push(el("div", { class: "drive-edit" }, [input, btn]), err);
+    if (!task.driveUrl) nodes.push(el("p", { class: "hint", text: "In Google Drive: open the folder → Share → Copy link, then paste it here." }));
 
-    if (!pic) {
-      nodes.push(el("p", { class: "hint", text: "Choose a PIC in “PIC / assigned to” above — only the PIC can add the Drive link." }));
-      if (Store.isMember(ws, me)) {
-        nodes.push(el("button", { type: "button", class: "link-btn link-btn--primary drive-me", text: "Make me the PIC",
-          onclick: () => {
-            const i = ws.members.findIndex((m) => Store.samePerson(m, me));
-            tPic.value = String(i);
-            renderDrive(currentTask().task);
-            driveBox.querySelector("input").focus();
-          } }));
-      }
-    } else if (!canEdit) {
-      nodes.push(el("p", { class: "hint", text: "Only the PIC (" + pic.name + ") can add or change this link." }));
-    } else if (!task.driveUrl) {
-      nodes.push(el("p", { class: "hint", text: "In Google Drive: open the folder → Share → Copy link, then paste it here." }));
-    }
-
-    if (canEdit) {
-      input.addEventListener("input", () => { err.textContent = ""; });
-      const save = async () => {
-        try {
-          // If the PIC was just picked in the dropdown, save it first so the PIC rule passes.
-          const saved = currentTask().task.assignee;
-          if (!saved || !Store.samePerson(saved, pic)) await Store.updateTask(ws.id, task.id, { assignee: pic });
-          await Store.setTaskDrive(ws.id, task.id, input.value, me);
-          UI.toast(input.value.trim() ? "Drive folder linked." : "Drive link removed.");
-        } catch (e) { err.textContent = e.message; return; }
-        await refresh(); if (currentTask()) renderLive();
-      };
-      btn.addEventListener("click", save);
-      input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } });
-    }
+    input.addEventListener("input", () => { err.textContent = ""; });
+    const save = async () => {
+      try {
+        await Store.setTaskDrive(ws.id, task.id, input.value, me);
+        UI.toast(input.value.trim() ? "Drive folder linked." : "Drive link removed.");
+      } catch (e) { err.textContent = e.message; return; }
+      await refresh(); if (currentTask()) renderLive();
+    };
+    btn.addEventListener("click", save);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } });
     driveBox.replaceChildren(...nodes);
   }
-  tPic.addEventListener("change", () => { if (currentTask()) renderDrive(currentTask().task); });
 
   function driveIcon() {
     const ns = "http://www.w3.org/2000/svg";

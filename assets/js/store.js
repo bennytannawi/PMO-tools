@@ -492,14 +492,14 @@
       try { return (await getBlob(fileId)) || null; } catch (e) { return null; }
     },
 
-    /* ---------- Google Drive folder link (set by the PIC) ---------- */
-    canSetDrive(task, user) { return !!task.assignee && (samePerson(task.assignee, user) || isAdmin(user)); },
+    /* ---------- Google Drive folder link (any workspace member) ---------- */
+    canSetDrive(ws, user) { return isAdmin(user) || isMember(normalise(ws), user); },
 
     setTaskDrive(wsId, taskId, url, actor) {
       return mutate((data) => {
-        const { task } = findTask(findWs(data, wsId), taskId);
-        if (!task.assignee) throw new Error("Assign a PIC first — the PIC links the Drive folder.");
-        if (!Store.canSetDrive(task, actor)) throw new Error("Only the PIC (" + task.assignee.name + ") can change the Drive link.");
+        const ws = findWs(data, wsId);
+        requireMember(ws, actor, "change the Drive link");
+        const { task } = findTask(ws, taskId);
         task.driveUrl = cleanDriveUrl(url);
         return task;
       });

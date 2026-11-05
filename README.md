@@ -30,10 +30,9 @@ Create a simple PMO tools similar to Asana for the team
     (e.g. *31 Oct 2026, 11:49 · 5 min ago*). Authors can **edit** their own comments
     (shown as *(edited 5 Nov 2026, 15:40)*; the original time stamp stays) and delete them;
     admins can delete any comment.
-  - **Google Drive folder** — the link box is always shown; it unlocks once a PIC is chosen
-    (tap *Make me the PIC* to assign yourself). The PIC pastes the folder link (must be a
-    `https://drive.google.com/` link); everyone sees an *Open Google Drive folder* button.
-    Admins can also set it as a fallback if the PIC is unavailable.
+  - **Google Drive folder** — any workspace member can paste or change the folder link
+    (must be a `https://drive.google.com/` link); everyone sees an *Open Google Drive
+    folder* button and the card shows a **Drive** tag.
   - Name, description, section and PIC save with **Save**; subtasks, comments and the
     Drive link save instantly.
 - **Workspace members** (Members button on the board) — add by name + email, remove
@@ -104,7 +103,7 @@ Supabase's built-in email sender allows only a few emails per hour and is meant
 for testing. Before inviting the whole team, set up your own SMTP under
 **Authentication → Emails → SMTP Settings** (e.g. Google Workspace, Resend, SendGrid).
 
-> ⚠️ The member-only comment rule and the PIC-only Drive rule are enforced in
+> ⚠️ The member-only rules for comments, files and the Drive link are enforced in
 > the browser for now. When boards move to Supabase, enforce them with Row Level Security.
 
 ## Where data is stored (important)

@@ -429,4 +429,3 @@ dialog.dialog--wide { width: min(720px, calc(100vw - 32px)); max-height: calc(10
 /* Drive box states */
 .drive-edit input:disabled { background: var(--bg); color: var(--text-muted); cursor: not-allowed; }
 .drive-edit .button:disabled { opacity: .5; cursor: not-allowed; }
-.drive-me { margin-top: 6px; font-size: 13px; }
