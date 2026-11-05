@@ -21,6 +21,9 @@
     MAX_TASK_TITLE: 200,
     MAX_SUBTASK: 200,
     MAX_COMMENT: 2000,
+    MAX_FILE_MB: 10,          // per file
+    MAX_FILES_PER_POST: 5,    // per comment / per upload
+    FILES_DB: "pmo_files_v1", // IndexedDB database holding the file contents
   };
 
   let memoryFallback = null; // used when localStorage is blocked
@@ -67,6 +70,67 @@
     throw new Error("Task not found.");
   }
 
+  /* ---------- File contents (IndexedDB) ----------
+   * localStorage is too small for files (~5 MB total), so file bytes live in
+   * IndexedDB and only the metadata (name, size, who, when) sits with the task.
+   * Demo mode: files stay in this browser only. */
+  let dbPromise = null;
+  function filesDb() {
+    if (!dbPromise) {
+      dbPromise = new Promise((resolve, reject) => {
+        let req;
+        try { req = global.indexedDB.open(CONFIG.FILES_DB, 1); }
+        catch (e) { reject(new Error("This browser can't store files (private mode?).")); return; }
+        req.onupgradeneeded = () => req.result.createObjectStore("files");
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(new Error("This browser can't store files (private mode?)."));
+      });
+      dbPromise.catch(() => { dbPromise = null; });
+    }
+    return dbPromise;
+  }
+  async function fileTx(mode, fn) {
+    const db = await filesDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("files", mode);
+      const req = fn(tx.objectStore("files"));
+      tx.oncomplete = () => resolve(req && req.result);
+      tx.onerror = tx.onabort = () => reject(tx.error && tx.error.name === "QuotaExceededError"
+        ? new Error("This browser is out of storage space for files.") : new Error("Couldn't save the file."));
+    });
+  }
+  const putBlob = (id, blob) => fileTx("readwrite", (st) => st.put(blob, id));
+  const getBlob = (id) => fileTx("readonly", (st) => st.get(id));
+  const delBlobs = (ids) => ids.length ? fileTx("readwrite", (st) => { ids.forEach((id) => st.delete(id)); }).catch(() => {}) : Promise.resolve();
+
+  function checkFiles(files) {
+    const list = Array.from(files || []);
+    if (list.length > CONFIG.MAX_FILES_PER_POST) throw new Error("Attach up to " + CONFIG.MAX_FILES_PER_POST + " files at a time.");
+    const big = list.find((f) => f.size > CONFIG.MAX_FILE_MB * 1024 * 1024);
+    if (big) throw new Error("“" + big.name + "” is larger than " + CONFIG.MAX_FILE_MB + " MB.");
+    const empty = list.find((f) => !f.size);
+    if (empty) throw new Error("“" + empty.name + "” is empty.");
+    return list;
+  }
+
+  /** Saves file bytes, returns metadata records. Rolls back on failure. */
+  async function saveFiles(list, author) {
+    const metas = [];
+    try {
+      for (const f of list) {
+        const m = { id: uid("file"), name: String(f.name || "file").slice(0, 200), size: f.size, type: f.type || "",
+          author: person(author), createdAt: Date.now() };
+        await putBlob(m.id, f);
+        metas.push(m);
+      }
+    } catch (e) { await delBlobs(metas.map((m) => m.id)); throw e; }
+    return metas;
+  }
+
+  function taskFileIds(task) {
+    return [...(task.attachments || []), ...(task.comments || []).flatMap((c) => c.attachments || [])].map((a) => a.id);
+  }
+
   /* ---------- People & permissions ---------- */
   function person(u) {
     return { name: clean(u && u.name, 80), email: String((u && u.email) || "").trim().toLowerCase() };
@@ -97,6 +161,8 @@
       if (!("assignee" in t)) t.assignee = null;
       if (!("driveUrl" in t)) t.driveUrl = "";
       if (!("dueDate" in t)) t.dueDate = "";
+      if (!Array.isArray(t.attachments)) t.attachments = [];
+      t.comments.forEach((c) => { if (!Array.isArray(c.attachments)) c.attachments = []; });
     }));
     return ws;
   }
@@ -262,7 +328,7 @@
         if (!t) throw new Error("Enter a task name.");
         const task = {
           id: uid("task"), title: t, description: "", createdAt: Date.now(), createdBy: createdBy || "",
-          assignee: null, dueDate: "", subtasks: [], comments: [], driveUrl: "",
+          assignee: null, dueDate: "", subtasks: [], comments: [], attachments: [], driveUrl: "",
         };
         s.tasks.push(task);
         return task;
@@ -345,28 +411,71 @@
     },
 
     /* ---------- Comments (workspace members only, time-stamped) ---------- */
-    addComment(wsId, taskId, text, author) {
-      return mutate((data) => {
-        const ws = findWs(data, wsId);
-        requireMember(ws, author, "comment");
-        const body = String(text || "").trim().slice(0, CONFIG.MAX_COMMENT);
-        if (!body) throw new Error("Write a comment first.");
-        const { task } = findTask(ws, taskId);
-        const c = { id: uid("cmt"), text: body, author: person(author), createdAt: Date.now() };
-        task.comments.push(c);
-        return c;
-      });
+    /** Text, files, or both. Files are stored first, then the comment is saved with their timestamp. */
+    async addComment(wsId, taskId, text, author, files) {
+      const pre = findWs(load(), wsId);
+      requireMember(pre, author, "comment");
+      findTask(pre, taskId);
+      const body = String(text || "").trim().slice(0, CONFIG.MAX_COMMENT);
+      const list = checkFiles(files);
+      if (!body && !list.length) throw new Error("Write a comment or attach a file first.");
+      const metas = await saveFiles(list, author);
+      try {
+        return await mutate((data) => {
+          const { task } = findTask(findWs(data, wsId), taskId);
+          const c = { id: uid("cmt"), text: body, author: person(author), createdAt: Date.now(), attachments: metas };
+          metas.forEach((m) => { m.createdAt = c.createdAt; });
+          task.comments.push(c);
+          return c;
+        });
+      } catch (e) { await delBlobs(metas.map((m) => m.id)); throw e; }
     },
 
-    /** Authors can delete their own comments; admins can delete any. */
-    deleteComment(wsId, taskId, commentId, actor) {
-      return mutate((data) => {
+    /** Authors can delete their own comments; admins can delete any. Files in the comment are deleted too. */
+    async deleteComment(wsId, taskId, commentId, actor) {
+      const removed = await mutate((data) => {
         const { task } = findTask(findWs(data, wsId), taskId);
         const c = task.comments.find((x) => x.id === commentId);
         if (!c) throw new Error("Comment not found.");
         if (!samePerson(c.author, actor) && !isAdmin(actor)) throw new Error("You can only delete your own comments.");
         task.comments = task.comments.filter((x) => x.id !== commentId);
+        return c.attachments.map((a) => a.id);
       });
+      await delBlobs(removed);
+    },
+
+    /* ---------- Attachments (task-level) ---------- */
+    async addAttachments(wsId, taskId, files, author) {
+      const pre = findWs(load(), wsId);
+      requireMember(pre, author, "attach files");
+      findTask(pre, taskId);
+      const list = checkFiles(files);
+      if (!list.length) throw new Error("Choose a file to attach.");
+      const metas = await saveFiles(list, author);
+      try {
+        return await mutate((data) => {
+          const { task } = findTask(findWs(data, wsId), taskId);
+          task.attachments.push(...metas);
+          return metas;
+        });
+      } catch (e) { await delBlobs(metas.map((m) => m.id)); throw e; }
+    },
+
+    /** Uploader or admin. (Files attached in a comment are removed by deleting the comment.) */
+    async deleteAttachment(wsId, taskId, fileId, actor) {
+      await mutate((data) => {
+        const { task } = findTask(findWs(data, wsId), taskId);
+        const a = task.attachments.find((x) => x.id === fileId);
+        if (!a) throw new Error("Attachment not found.");
+        if (!samePerson(a.author, actor) && !isAdmin(actor)) throw new Error("Only the person who attached it can delete it.");
+        task.attachments = task.attachments.filter((x) => x.id !== fileId);
+      });
+      await delBlobs([fileId]);
+    },
+
+    /** Returns the file as a Blob (or null if it isn't in this browser). */
+    async getFile(fileId) {
+      try { return (await getBlob(fileId)) || null; } catch (e) { return null; }
     },
 
     /* ---------- Google Drive folder link (set by the PIC) ---------- */
@@ -384,12 +493,14 @@
 
     samePerson,
 
-    deleteTask(wsId, taskId) {
-      return mutate((data) => {
+    async deleteTask(wsId, taskId) {
+      const ids = await mutate((data) => {
         const ws = findWs(data, wsId);
-        const { section, index } = findTask(ws, taskId);
+        const { section, index, task } = findTask(ws, taskId);
         section.tasks.splice(index, 1);
+        return taskFileIds(task);
       });
+      await delBlobs(ids);
     },
   };
 

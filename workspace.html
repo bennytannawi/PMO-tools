@@ -102,6 +102,20 @@
             </div>
           </section>
 
+          <section class="td-block" aria-labelledby="att-title">
+            <div class="td-block__head">
+              <h3 id="att-title">Attachments</h3>
+              <span class="td-block__meta" id="att-count"></span>
+            </div>
+            <div class="dropzone" id="att-drop">
+              <input type="file" id="att-input" multiple hidden />
+              <span class="dropzone__icon" aria-hidden="true">📎</span>
+              <span><span class="only-pointer">Drag files here or </span><button type="button" class="link-btn link-btn--primary" id="att-browse"><span class="only-touch">Tap to </span>choose files</button></span>
+              <span class="hint" id="att-limits"></span>
+            </div>
+            <ul class="files" id="att-list"></ul>
+          </section>
+
           <section class="td-block" aria-labelledby="cmt-title">
             <div class="td-block__head">
               <h3 id="cmt-title">Comments</h3>

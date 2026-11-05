@@ -156,6 +156,8 @@
       badges.push(el("span", { class: "badge" + (doneN === subs.length ? " badge--done" : ""), title: "Subtasks done",
         text: "☑ " + doneN + "/" + subs.length }));
     }
+    const nF = (task.attachments || []).length + (task.comments || []).reduce((n, c) => n + (c.attachments || []).length, 0);
+    if (nF) badges.push(el("span", { class: "badge", title: nF + (nF === 1 ? " attachment" : " attachments"), text: "📎 " + nF }));
     const nC = (task.comments || []).length;
     if (nC) badges.push(el("span", { class: "badge", title: nC + (nC === 1 ? " comment" : " comments"), text: "💬 " + nC }));
     if (task.driveUrl) badges.push(el("span", { class: "badge badge--drive", title: "Google Drive folder linked", text: "Drive" }));
@@ -415,6 +417,14 @@
   const cmtCount = document.getElementById("cmt-count");
   const cmtComposer = document.getElementById("cmt-composer");
   const driveBox = document.getElementById("drive-box");
+  const attList = document.getElementById("att-list");
+  const attCount = document.getElementById("att-count");
+  const attInput = document.getElementById("att-input");
+  const attDrop = document.getElementById("att-drop");
+  document.getElementById("att-limits").textContent =
+    "Up to " + Store.config.MAX_FILES_PER_POST + " files at a time, " + Store.config.MAX_FILE_MB + " MB each.";
+  // Unsent comment (text + chosen files), kept while the panel redraws.
+  let draft = { taskId: null, text: "", files: [] };
   let editingId = null;
 
   function currentTask() {
@@ -449,6 +459,7 @@
   function renderLive() {
     const { task } = currentTask();
     renderSubtasks(task);
+    renderAttachments(task);
     renderComments(task);
     renderDrive(task);
   }
@@ -486,6 +497,105 @@
   document.getElementById("sub-add").addEventListener("click", addSubtask);
   subInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addSubtask(); } });
 
+  /* Attachments */
+  function fileSize(n) {
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return Math.round(n / 1024) + " KB";
+    return (n / 1024 / 1024).toFixed(1) + " MB";
+  }
+  function fileKind(a) {
+    const ext = (a.name.split(".").pop() || "").toLowerCase();
+    if (/^image\//.test(a.type)) return { icon: "🖼", label: "Image" };
+    if (ext === "pdf") return { icon: "📕", label: "PDF" };
+    if (/^(xlsx?|csv|xlsm)$/.test(ext)) return { icon: "📗", label: "Spreadsheet" };
+    if (/^(docx?|rtf|txt)$/.test(ext)) return { icon: "📘", label: "Document" };
+    if (/^(pptx?|key)$/.test(ext)) return { icon: "📙", label: "Presentation" };
+    if (/^(zip|rar|7z)$/.test(ext)) return { icon: "🗜", label: "Archive" };
+    return { icon: "📄", label: "File" };
+  }
+
+  /** Open images/PDFs in a new tab; download everything else. */
+  async function openFile(a) {
+    const isView = /^image\//.test(a.type) || a.type === "application/pdf";
+    const win = isView ? window.open("", "_blank") : null; // open now so pop-up blockers allow it
+    const blob = await Store.getFile(a.id);
+    if (!blob) {
+      if (win) win.close();
+      UI.toast("This file isn't stored in this browser. In demo mode files stay on the device that uploaded them.");
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    if (win) win.location.href = url;
+    else {
+      const link = el("a", { href: url, download: a.name });
+      document.body.append(link); link.click(); link.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  const thumbCache = new Map();
+  function thumb(a) {
+    const img = el("img", { class: "file__thumb", alt: "", hidden: true });
+    if (/^image\//.test(a.type)) {
+      const put = (u) => { if (u) { img.src = u; img.hidden = false; } };
+      if (thumbCache.has(a.id)) put(thumbCache.get(a.id));
+      else Store.getFile(a.id).then((b) => { const u = b ? URL.createObjectURL(b) : null; thumbCache.set(a.id, u); put(u); });
+    }
+    return img;
+  }
+
+  /** One file row. opts: { stamp: bool, source: "comment" | null, onDelete } */
+  function fileRow(a, opts) {
+    const k = fileKind(a);
+    const meta = [fileSize(a.size)];
+    if (opts.stamp) meta.push(a.author.name, formatStamp(a.createdAt));
+    if (opts.source === "comment") meta.push("in a comment");
+    return el("li", { class: "file" }, [
+      el("button", { type: "button", class: "file__open", title: "Open " + a.name, onclick: () => openFile(a) }, [
+        el("span", { class: "file__icon", "aria-hidden": "true", text: k.icon }), thumb(a),
+        el("span", { class: "file__info" }, [
+          el("span", { class: "file__name", text: a.name }),
+          el("span", { class: "file__meta", text: meta.join(" · ") }),
+        ]),
+      ]),
+      opts.onDelete ? el("button", { type: "button", class: "icon-btn", "aria-label": "Delete " + a.name, title: "Delete", text: "✕", onclick: opts.onDelete }) : null,
+    ]);
+  }
+
+  function renderAttachments(task) {
+    const own = task.attachments.map((a) => ({ a, source: null }));
+    const fromComments = task.comments.flatMap((c) => c.attachments.map((a) => ({ a, source: "comment" })));
+    const all = own.concat(fromComments).sort((x, y) => y.a.createdAt - x.a.createdAt);
+    attCount.textContent = all.length ? String(all.length) : "";
+    attList.replaceChildren(...all.map(({ a, source }) => fileRow(a, {
+      stamp: true, source,
+      onDelete: !source && (Store.samePerson(a.author, me) || me.role === "admin")
+        ? () => { if (confirm("Delete “" + a.name + "”?")) live(() => Store.deleteAttachment(ws.id, task.id, a.id, me)); }
+        : null,
+    })));
+  }
+
+  function uploadToTask(files) {
+    if (!files || !files.length) return;
+    const id = editingId;
+    UI.toast("Uploading " + files.length + (files.length === 1 ? " file…" : " files…"));
+    live(async () => {
+      await Store.addAttachments(ws.id, id, files, me);
+      UI.toast(files.length === 1 ? "File attached." : files.length + " files attached.");
+    });
+  }
+  attDrop.addEventListener("click", (e) => { if (e.target !== attInput) attInput.click(); });
+  attInput.addEventListener("change", () => { const f = [...attInput.files]; attInput.value = ""; uploadToTask(f); });
+  ["dragenter", "dragover"].forEach((t) => attDrop.addEventListener(t, (e) => {
+    if (![...(e.dataTransfer.types || [])].includes("Files")) return;
+    e.preventDefault(); attDrop.classList.add("is-over");
+  }));
+  ["dragleave", "drop"].forEach((t) => attDrop.addEventListener(t, () => attDrop.classList.remove("is-over")));
+  attDrop.addEventListener("drop", (e) => {
+    if (!e.dataTransfer.files.length) return;
+    e.preventDefault(); uploadToTask([...e.dataTransfer.files]);
+  });
+
   /* Comments */
   function renderComments(task) {
     const n = task.comments.length;
@@ -503,7 +613,8 @@
             mine || me.role === "admin" ? el("button", { type: "button", class: "link-btn", text: "Delete",
               onclick: () => { if (confirm("Delete this comment?")) live(() => Store.deleteComment(ws.id, task.id, c.id, me)); } }) : null,
           ]),
-          el("p", { class: "comment__text", text: c.text }),
+          c.text ? el("p", { class: "comment__text", text: c.text }) : null,
+          c.attachments.length ? el("ul", { class: "files files--comment" }, c.attachments.map((a) => fileRow(a, { stamp: false }))) : null,
         ]),
       ]);
     }) : [el("li", { class: "comments__empty", text: "No comments yet." })]));
@@ -512,18 +623,70 @@
       cmtComposer.replaceChildren(el("p", { class: "hint", text: "Only members of this workspace can comment. Ask a member to add you under Members." }));
       return;
     }
+    if (draft.taskId !== task.id) draft = { taskId: task.id, text: "", files: [] };
     const box = el("textarea", { rows: "2", maxlength: "2000", placeholder: "Write a comment… (Ctrl+Enter to post)", "aria-label": "New comment" });
-    const post = () => {
-      const v = box.value.trim();
-      if (!v) { box.focus(); return; }
-      live(() => Store.addComment(ws.id, task.id, v, me));
+    box.value = draft.text;
+    box.addEventListener("input", () => { draft.text = box.value; });
+    const picker = el("input", { type: "file", multiple: true, hidden: true });
+    const chips = el("ul", { class: "pending" });
+    const err = el("p", { class: "field__error" });
+    const postBtn = el("button", { type: "button", class: "button button--primary button--sm", text: "Post comment" });
+
+    const drawChips = () => {
+      chips.replaceChildren(...draft.files.map((f, i) => el("li", { class: "pending__chip" }, [
+        el("span", { "aria-hidden": "true", text: fileKind({ name: f.name, type: f.type }).icon }),
+        el("span", { class: "pending__name", text: f.name }),
+        el("span", { class: "pending__size", text: fileSize(f.size) }),
+        el("button", { type: "button", class: "icon-btn", "aria-label": "Remove " + f.name, text: "✕",
+          onclick: () => { draft.files.splice(i, 1); drawChips(); } }),
+      ])));
+      err.textContent = "";
     };
+    const addFiles = (list) => {
+      const max = Store.config.MAX_FILES_PER_POST, mb = Store.config.MAX_FILE_MB;
+      for (const f of list) {
+        if (draft.files.length >= max) { err.textContent = "Up to " + max + " files per comment."; break; }
+        if (f.size > mb * 1024 * 1024) { err.textContent = "“" + f.name + "” is larger than " + mb + " MB."; continue; }
+        draft.files.push(f);
+      }
+      const msg = err.textContent; drawChips(); err.textContent = msg;
+    };
+    picker.addEventListener("change", () => { addFiles([...picker.files]); picker.value = ""; });
+
+    const post = async () => {
+      const v = box.value.trim();
+      if (!v && !draft.files.length) { err.textContent = "Write a comment or attach a file first."; box.focus(); return; }
+      postBtn.disabled = true; postBtn.textContent = draft.files.length ? "Uploading…" : "Posting…";
+      try {
+        await Store.addComment(ws.id, task.id, v, me, draft.files);
+        draft = { taskId: task.id, text: "", files: [] };
+      } catch (e2) {
+        postBtn.disabled = false; postBtn.textContent = "Post comment";
+        err.textContent = e2.message; return;
+      }
+      await refresh();
+      if (currentTask()) renderLive();
+    };
+    postBtn.addEventListener("click", post);
     box.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); post(); } });
-    cmtComposer.replaceChildren(el("div", { class: "comment-new" }, [
-      avatar(me.name, "avatar--sm"),
-      el("div", { class: "comment-new__box" }, [box,
-        el("button", { type: "button", class: "button button--primary button--sm", text: "Post comment", onclick: post })]),
-    ]));
+
+    const boxWrap = el("div", { class: "comment-new__box" }, [box, chips, err,
+      el("div", { class: "comment-new__actions" }, [
+        el("button", { type: "button", class: "button button--ghost button--sm", onclick: () => picker.click() }, [
+          el("span", { "aria-hidden": "true", text: "📎" }), document.createTextNode("Attach file"),
+        ]),
+        el("span", { class: "spacer" }),
+        postBtn,
+      ]), picker]);
+    ["dragenter", "dragover"].forEach((t) => boxWrap.addEventListener(t, (e) => {
+      if (![...(e.dataTransfer.types || [])].includes("Files")) return;
+      e.preventDefault(); boxWrap.classList.add("is-over");
+    }));
+    ["dragleave", "drop"].forEach((t) => boxWrap.addEventListener(t, () => boxWrap.classList.remove("is-over")));
+    boxWrap.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) { e.preventDefault(); addFiles([...e.dataTransfer.files]); } });
+
+    cmtComposer.replaceChildren(el("div", { class: "comment-new" }, [avatar(me.name, "avatar--sm"), boxWrap]));
+    drawChips();
   }
 
   /* Google Drive folder */

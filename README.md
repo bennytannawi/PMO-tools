@@ -22,7 +22,11 @@ Create a simple PMO tools similar to Asana for the team
     📅 with the date: red when overdue, amber when due today/tomorrow.
   - **Description**.
   - **Subtasks / checklist** — add, tick, rename, delete; progress bar, and `☑ 2/5` on the card.
-  - **Comments** — workspace members only; each shows author and a date-time stamp
+  - **Attachments** — drag files in or tap *choose files* (up to 5 at a time, 10 MB each).
+    Each file shows who attached it and the date-time. Files attached in comments also
+    appear here. Tap a file to open it (images/PDF) or download it. The card shows 📎 count.
+  - **Comments** — tap **📎 Attach file** to add files to a comment; they appear inside the
+    comment under the same time stamp. Workspace members only; each shows author and a date-time stamp
     (e.g. *31 Oct 2026, 11:49 · 5 min ago*). Authors (and admins) can delete their own.
   - **Google Drive folder** — the PIC pastes the folder link (must be a
     `https://drive.google.com/` link); everyone sees an *Open Google Drive folder* button.
@@ -89,8 +93,15 @@ connect a backend and replace the method bodies in `assets/js/store.js`
 (`listWorkspaces`, `createWorkspace`, `getWorkspace`, `addMember`,
 `removeMember`, `addSection`, `renameSection`, `deleteSection`, `addTask`,
 `updateTask`, `moveTask`, `deleteTask`, `addSubtask`, `updateSubtask`,
-`deleteSubtask`, `addComment`, `deleteComment`, `setTaskDrive`) with API calls. The pages only call these async methods, so no
+`deleteSubtask`, `addComment`, `deleteComment`, `addAttachments`,
+`deleteAttachment`, `getFile`, `setTaskDrive`) with API calls. The pages only call these async methods, so no
 page code needs to change.
+
+### Attachments in demo mode
+File contents are saved in the browser's **IndexedDB** (not uploaded anywhere), so a
+file can only be opened on the device/browser that attached it. With a backend, send
+files to cloud storage (e.g. S3, Google Cloud Storage or Supabase Storage) inside
+`saveFiles` / `getFile` in `store.js`.
 
 ## Protecting a new page
 ```html
