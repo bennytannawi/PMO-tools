@@ -216,6 +216,33 @@
     throw new Error("Someone else is editing this board right now. Please try again.");
   }
 
+  /* ---------- @mentions ----------
+   * Handle = the member's name in lower case with spaces/punctuation removed:
+   * "Rivan Oktavianus" → "rivanoktavianus". If two members end up with the same
+   * handle, later ones get 2, 3, … appended. */
+  function baseHandle(name) {
+    return String(name || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "") || "user";
+  }
+  function mentionHandles(members) {
+    const used = {};
+    return (members || []).map((m) => {
+      const b = baseHandle(m.name);
+      used[b] = (used[b] || 0) + 1;
+      return { handle: used[b] === 1 ? b : b + used[b], name: m.name, email: m.email };
+    });
+  }
+  /** Members mentioned in text as @handle (case-insensitive, each once). */
+  function findMentions(text, members) {
+    const map = new Map(mentionHandles(members).map((h) => [h.handle, h]));
+    const out = new Map();
+    String(text || "").replace(/(^|[^a-z0-9_.@])@([a-z0-9]+)/gi, (all, pre, h) => {
+      const hit = map.get(h.toLowerCase());
+      if (hit) out.set(hit.handle, { handle: hit.handle, name: hit.name, email: hit.email });
+      return all;
+    });
+    return [...out.values()];
+  }
+
   /* ---------- Files (Supabase Storage) ---------- */
   const filePath = (wsId, fileId) => wsId + "/" + fileId;
 
@@ -519,7 +546,8 @@
       try {
         return await mutateWs(wsId, (ws) => {
           const { task } = findTask(ws, taskId);
-          const c = { id: uid("cmt"), text: body, author: person(author), createdAt: Date.now(), attachments: clone(metas) };
+          const c = { id: uid("cmt"), text: body, author: person(author), createdAt: Date.now(), attachments: clone(metas),
+            mentions: findMentions(body, ws.members) };
           c.attachments.forEach((m) => { m.createdAt = c.createdAt; });
           task.comments.push(c);
           return c;
@@ -536,7 +564,7 @@
         if (!samePerson(c.author, actor)) throw new Error("You can only edit your own comments.");
         const body = String(text || "").trim().slice(0, CONFIG.MAX_COMMENT);
         if (!body && !c.attachments.length) throw new Error("A comment can't be empty. Delete it instead.");
-        if (body !== c.text) { c.text = body; c.editedAt = Date.now(); }
+        if (body !== c.text) { c.text = body; c.editedAt = Date.now(); c.mentions = findMentions(body, ws.members); }
         return c;
       }, { actor });
     },
@@ -610,6 +638,7 @@
     },
 
     samePerson,
+    mentionHandles,
 
     /* ---------- Live updates ---------- */
     /**

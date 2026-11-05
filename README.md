@@ -25,6 +25,10 @@ Create a simple PMO tools similar to Asana for the team
   - **Attachments** — drag files in or tap *choose files* (up to 5 at a time, 10 MB each).
     Each file shows who attached it and the date-time. Files attached in comments also
     appear here. Tap a file to open it (images/PDF) or download it. The card shows 📎 count.
+  - **@mentions** — type `@` in a comment to pick a workspace member; it inserts their
+    handle (name in lower case, no spaces: *Rivan Oktavianus* → `@rivanoktavianus`).
+    Mentions are highlighted; comments that mention you get an amber marker. Each
+    comment stores its `mentions` list (name + email) for future notifications.
   - **Comments** — tap **📎 Attach file** to add files to a comment; they appear inside the
     comment under the same time stamp. Workspace members only; each shows author and a date-time stamp
     (e.g. *31 Oct 2026, 11:49 · 5 min ago*). Authors can **edit** their own comments

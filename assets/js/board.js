@@ -632,6 +632,108 @@
     e.preventDefault(); uploadToTask([...e.dataTransfer.files]);
   });
 
+  /* @mentions */
+  function handles() { return Store.mentionHandles(ws.members); }
+
+  /** Comment text with @handles of workspace members shown as highlighted names. */
+  function mentionText(text) {
+    const map = new Map(handles().map((h) => [h.handle, h]));
+    const out = [];
+    let last = 0;
+    const re = /(^|[^a-z0-9_.@])@([a-z0-9]+)/gi;
+    let m;
+    while ((m = re.exec(text))) {
+      const hit = map.get(m[2].toLowerCase());
+      if (!hit) continue;
+      const start = m.index + m[1].length;
+      if (start > last) out.push(document.createTextNode(text.slice(last, start)));
+      out.push(el("span", { class: "mention" + (Store.samePerson(hit, me) ? " mention--me" : ""), title: hit.name + (hit.email ? " · " + hit.email : ""),
+        text: "@" + hit.handle }));
+      last = start + 1 + m[2].length;
+    }
+    if (last < text.length) out.push(document.createTextNode(text.slice(last)));
+    return out;
+  }
+
+  let mentionMenu = null;
+  function closeMentions() { if (mentionMenu) { mentionMenu.remove(); mentionMenu = null; } }
+
+  /** Typing "@" in the textarea opens a list of workspace members; picking one inserts @handle. */
+  function attachMentions(area) {
+    let state = null; // { start, items, active }
+
+    const query = () => {
+      const pos = area.selectionStart;
+      const before = area.value.slice(0, pos);
+      const m = /(^|[^a-z0-9_.@])@([a-z0-9]*)$/i.exec(before);
+      return m ? { start: pos - m[2].length - 1, q: m[2].toLowerCase() } : null;
+    };
+
+    const pick = (h) => {
+      const end = area.selectionStart;
+      const after = area.value.slice(end).replace(/^[a-z0-9]*/i, "");
+      const insert = "@" + h.handle + " ";
+      area.value = area.value.slice(0, state.start) + insert + after.replace(/^ /, "");
+      const caret = state.start + insert.length;
+      area.setSelectionRange(caret, caret);
+      close();
+      area.dispatchEvent(new Event("input"));
+      area.focus();
+    };
+
+    const close = () => { state = null; closeMentions(); };
+
+    const draw = () => {
+      closeMentions();
+      if (!state || !state.items.length) return;
+      mentionMenu = el("div", { class: "mention-menu", role: "listbox", "aria-label": "Mention a member" },
+        state.items.map((h, i) => el("button", {
+          type: "button", role: "option", "aria-selected": String(i === state.active), class: i === state.active ? "is-active" : "",
+          onmousedown: (e) => e.preventDefault(), // keep focus in the textarea
+          onclick: () => pick(h),
+        }, [
+          avatar(h.name, "avatar--xs"),
+          el("span", { class: "mention-menu__name", text: h.name }),
+          el("span", { class: "mention-menu__handle", text: "@" + h.handle }),
+        ])));
+      // Inside the dialog so it stays above the backdrop; positioned under the textarea.
+      dialog.append(mentionMenu);
+      const r = area.getBoundingClientRect(), d = dialog.getBoundingClientRect();
+      const h = mentionMenu.offsetHeight;
+      const below = r.bottom + 4 + h < window.innerHeight - 8;
+      mentionMenu.style.left = (r.left - d.left) + "px";
+      mentionMenu.style.top = (dialog.scrollTop + (below ? r.bottom - d.top + 4 : r.top - d.top - h - 4)) + "px";
+      mentionMenu.style.left = (dialog.scrollLeft + r.left - d.left) + "px";
+      mentionMenu.style.width = Math.min(320, r.width) + "px";
+    };
+
+    const update = () => {
+      const qy = query();
+      if (!qy) { close(); return; }
+      const items = handles().filter((h) => h.handle.includes(qy.q) || h.name.toLowerCase().includes(qy.q)).slice(0, 8);
+      const prev = state && state.active;
+      state = { start: qy.start, items, active: Math.min(prev || 0, Math.max(0, items.length - 1)) };
+      if (!items.length) { close(); return; }
+      draw();
+    };
+
+    area.addEventListener("input", update);
+    area.addEventListener("click", update);
+    area.addEventListener("blur", () => setTimeout(close, 150));
+    area.addEventListener("keydown", (e) => {
+      if (!state || !mentionMenu) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const n = state.items.length;
+        state.active = (state.active + (e.key === "ArrowDown" ? 1 : n - 1)) % n;
+        draw();
+      } else if ((e.key === "Enter" && !e.ctrlKey && !e.metaKey) || e.key === "Tab") {
+        e.preventDefault(); e.stopImmediatePropagation();
+        pick(state.items[state.active]);
+      }
+    });
+  }
+
   /* Comments */
   function renderComments(task) {
     const n = task.comments.length;
@@ -650,6 +752,7 @@
       if (editing) {
         const area = el("textarea", { rows: "3", maxlength: "2000", "aria-label": "Edit comment", class: "comment__edit" });
         area.value = c.text;
+        attachMentions(area);
         const err = el("p", { class: "field__error" });
         const cancel = () => { editingComment = null; renderComments(currentTask().task); };
         const save = async () => {
@@ -669,10 +772,11 @@
           ])]);
         setTimeout(() => { area.focus(); area.setSelectionRange(area.value.length, area.value.length); });
       } else {
-        content = c.text ? el("p", { class: "comment__text", text: c.text }) : null;
+        content = c.text ? el("p", { class: "comment__text" }, mentionText(c.text)) : null;
       }
 
-      return el("li", { class: "comment" }, [
+      const mentionsMe = (c.mentions || []).some((m) => Store.samePerson(m, me));
+      return el("li", { class: "comment" + (mentionsMe ? " comment--mentions-me" : "") }, [
         avatar(c.author.name, "avatar--sm"),
         el("div", { class: "comment__body" }, [
           el("div", { class: "comment__head" }, [
@@ -693,8 +797,9 @@
       return;
     }
     if (draft.taskId !== task.id) draft = { taskId: task.id, text: "", files: [] };
-    const box = el("textarea", { rows: "2", maxlength: "2000", placeholder: "Write a comment… (Ctrl+Enter to post)", "aria-label": "New comment" });
+    const box = el("textarea", { rows: "2", maxlength: "2000", placeholder: "Write a comment… type @ to mention someone (Ctrl+Enter to post)", "aria-label": "New comment" });
     box.value = draft.text;
+    attachMentions(box);
     box.addEventListener("input", () => { draft.text = box.value; });
     const picker = el("input", { type: "file", multiple: true, hidden: true });
     const chips = el("ul", { class: "pending" });
@@ -861,6 +966,7 @@
 
   // Esc while editing a comment cancels the edit instead of closing the panel.
   dialog.addEventListener("cancel", (e) => {
+    if (mentionMenu) { e.preventDefault(); closeMentions(); return; }
     if (editingComment) { e.preventDefault(); editingComment = null; if (currentTask()) renderComments(currentTask().task); }
   });
 

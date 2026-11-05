@@ -496,3 +496,21 @@ dialog.dialog--wide { width: min(720px, calc(100vw - 32px)); max-height: calc(10
 }
 .import-box p { margin: 6px 0 12px; color: var(--text); }
 .import-box .hint { margin: 10px 0 0; }
+
+/* @mentions */
+.mention { color: var(--primary); font-weight: 600; background: var(--primary-soft); border-radius: 4px; padding: 0 3px; }
+.mention--me { background: rgba(217, 119, 6, .18); color: var(--sec-review); }
+.comment--mentions-me .comment__text { box-shadow: inset 3px 0 0 var(--sec-review); }
+dialog .mention-menu {
+  position: absolute; z-index: 60; max-height: 260px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow-lg); padding: 4px;
+}
+.mention-menu button {
+  width: 100%; display: flex; align-items: center; gap: 8px; text-align: left;
+  border: 0; background: transparent; color: var(--text); font: inherit; font-size: 14px;
+  padding: 7px 8px; border-radius: 6px; cursor: pointer;
+}
+.mention-menu button.is-active, .mention-menu button:hover { background: var(--primary-soft); }
+.mention-menu__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mention-menu__handle { font-size: 12px; color: var(--text-muted); }
