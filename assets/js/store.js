@@ -431,6 +431,20 @@
       } catch (e) { await delBlobs(metas.map((m) => m.id)); throw e; }
     },
 
+    /** Only the author can edit their comment's text. Keeps the original time stamp and records editedAt. */
+    editComment(wsId, taskId, commentId, text, actor) {
+      return mutate((data) => {
+        const { task } = findTask(findWs(data, wsId), taskId);
+        const c = task.comments.find((x) => x.id === commentId);
+        if (!c) throw new Error("Comment not found.");
+        if (!samePerson(c.author, actor)) throw new Error("You can only edit your own comments.");
+        const body = String(text || "").trim().slice(0, CONFIG.MAX_COMMENT);
+        if (!body && !c.attachments.length) throw new Error("A comment can't be empty. Delete it instead.");
+        if (body !== c.text) { c.text = body; c.editedAt = Date.now(); }
+        return c;
+      });
+    },
+
     /** Authors can delete their own comments; admins can delete any. Files in the comment are deleted too. */
     async deleteComment(wsId, taskId, commentId, actor) {
       const removed = await mutate((data) => {

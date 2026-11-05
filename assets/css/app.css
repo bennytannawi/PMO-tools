@@ -341,6 +341,12 @@ dialog.dialog--wide { width: min(720px, calc(100vw - 32px)); max-height: calc(10
 .comment-new__box textarea { min-height: 64px; font-size: 14px; }
 .link-btn { border: 0; background: none; padding: 0; font: inherit; font-size: 12px; color: var(--text-muted); cursor: pointer; margin-left: auto; }
 .link-btn:hover { color: var(--danger); text-decoration: underline; }
+.comment__actions { margin-left: auto; display: inline-flex; gap: 12px; }
+.comment__actions .link-btn { margin-left: 0; }
+.link-btn--edit:hover { color: var(--primary); }
+.comment__edited { font-size: 12px; color: var(--text-muted); font-style: italic; }
+.comment__editor { margin-top: 6px; }
+.comment__edit { min-height: 72px; font-size: 14px; }
 
 .button--drive { width: 100%; background: var(--surface); color: var(--text); border-color: var(--border); margin-bottom: 8px; text-decoration: none; }
 .button--drive:hover { border-color: #4285f4; background: rgba(66, 133, 244, .08); }

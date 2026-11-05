@@ -27,7 +27,9 @@ Create a simple PMO tools similar to Asana for the team
     appear here. Tap a file to open it (images/PDF) or download it. The card shows 📎 count.
   - **Comments** — tap **📎 Attach file** to add files to a comment; they appear inside the
     comment under the same time stamp. Workspace members only; each shows author and a date-time stamp
-    (e.g. *31 Oct 2026, 11:49 · 5 min ago*). Authors (and admins) can delete their own.
+    (e.g. *31 Oct 2026, 11:49 · 5 min ago*). Authors can **edit** their own comments
+    (shown as *(edited 5 Nov 2026, 15:40)*; the original time stamp stays) and delete them;
+    admins can delete any comment.
   - **Google Drive folder** — the PIC pastes the folder link (must be a
     `https://drive.google.com/` link); everyone sees an *Open Google Drive folder* button.
     Admins can also set it as a fallback if the PIC is unavailable.

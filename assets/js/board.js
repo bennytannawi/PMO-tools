@@ -425,6 +425,7 @@
     "Up to " + Store.config.MAX_FILES_PER_POST + " files at a time, " + Store.config.MAX_FILE_MB + " MB each.";
   // Unsent comment (text + chosen files), kept while the panel redraws.
   let draft = { taskId: null, text: "", files: [] };
+  let editingComment = null; // id of the comment being edited
   let editingId = null;
 
   function currentTask() {
@@ -603,6 +604,39 @@
     cmtList.replaceChildren(...(n ? task.comments.map((c) => {
       const mine = Store.samePerson(c.author, me);
       const rel = relative(c.createdAt);
+      const editing = editingComment === c.id;
+      const actions = [];
+      if (mine && !editing) actions.push(el("button", { type: "button", class: "link-btn link-btn--edit", text: "Edit",
+        onclick: () => { editingComment = c.id; renderComments(currentTask().task); } }));
+      if ((mine || me.role === "admin") && !editing) actions.push(el("button", { type: "button", class: "link-btn", text: "Delete",
+        onclick: () => { if (confirm("Delete this comment?")) live(() => Store.deleteComment(ws.id, task.id, c.id, me)); } }));
+
+      let content;
+      if (editing) {
+        const area = el("textarea", { rows: "3", maxlength: "2000", "aria-label": "Edit comment", class: "comment__edit" });
+        area.value = c.text;
+        const err = el("p", { class: "field__error" });
+        const cancel = () => { editingComment = null; renderComments(currentTask().task); };
+        const save = async () => {
+          try { await Store.editComment(ws.id, task.id, c.id, area.value, me); }
+          catch (e2) { err.textContent = e2.message; return; }
+          editingComment = null;
+          await refresh(); if (currentTask()) renderLive();
+        };
+        area.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); }
+        });
+        area.addEventListener("input", () => { err.textContent = ""; });
+        content = el("div", { class: "comment__editor" }, [area, err,
+          el("div", { class: "inline-form__actions" }, [
+            el("button", { type: "button", class: "button button--primary button--sm", text: "Save", onclick: save }),
+            el("button", { type: "button", class: "button button--ghost button--sm", text: "Cancel", onclick: cancel }),
+          ])]);
+        setTimeout(() => { area.focus(); area.setSelectionRange(area.value.length, area.value.length); });
+      } else {
+        content = c.text ? el("p", { class: "comment__text", text: c.text }) : null;
+      }
+
       return el("li", { class: "comment" }, [
         avatar(c.author.name, "avatar--sm"),
         el("div", { class: "comment__body" }, [
@@ -610,10 +644,10 @@
             el("strong", { text: c.author.name }),
             el("time", { datetime: new Date(c.createdAt).toISOString(), title: formatStamp(c.createdAt),
               text: formatStamp(c.createdAt) + (rel ? " · " + rel : "") }),
-            mine || me.role === "admin" ? el("button", { type: "button", class: "link-btn", text: "Delete",
-              onclick: () => { if (confirm("Delete this comment?")) live(() => Store.deleteComment(ws.id, task.id, c.id, me)); } }) : null,
+            c.editedAt ? el("span", { class: "comment__edited", title: "Edited " + formatStamp(c.editedAt), text: "(edited " + formatStamp(c.editedAt) + ")" }) : null,
+            actions.length ? el("span", { class: "comment__actions" }, actions) : null,
           ]),
-          c.text ? el("p", { class: "comment__text", text: c.text }) : null,
+          content,
           c.attachments.length ? el("ul", { class: "files files--comment" }, c.attachments.map((a) => fileRow(a, { stamp: false }))) : null,
         ]),
       ]);
@@ -740,6 +774,7 @@
 
   function openTask(taskId) {
     editingId = taskId;
+    editingComment = null;
     const { task, section } = currentTask();
     tProject.value = ws.name;
     tTitle.value = task.title;
@@ -774,6 +809,11 @@
   });
   tDue.addEventListener("change", updateDueHint);
   document.getElementById("task-due-clear").addEventListener("click", () => { tDue.value = ""; updateDueHint(); });
+
+  // Esc while editing a comment cancels the edit instead of closing the panel.
+  dialog.addEventListener("cancel", (e) => {
+    if (editingComment) { e.preventDefault(); editingComment = null; if (currentTask()) renderComments(currentTask().task); }
+  });
 
   document.getElementById("task-cancel").addEventListener("click", () => dialog.close());
   document.getElementById("task-close").addEventListener("click", () => dialog.close());
