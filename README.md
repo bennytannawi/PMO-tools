@@ -56,7 +56,8 @@ assets/js/auth.js       Auth service — the only file that talks to Supabase Au
 assets/js/reset-password.js  Set-password page (invites + password reset)
 assets/js/users.js      Users page behaviour
 supabase/functions/manage-users/index.ts  Server function for user management
-assets/js/store.js      Data store — the only file that reads/writes workspace data
+supabase/migrations/    Database tables, security rules, storage bucket
+assets/js/store.js      Data store — reads/writes workspaces in Supabase (+ live updates, import)
 assets/js/common.js     Shared helpers (top bar, toast, element builder)
 assets/js/login.js      Login form behaviour
 assets/js/workspaces.js Workspaces page behaviour
@@ -121,30 +122,28 @@ for testing. Before inviting the whole team, set up your own SMTP under
 > ⚠️ The member-only rules for comments, files and the Drive link are enforced in
 > the browser for now. When boards move to Supabase, enforce them with Row Level Security.
 
-## Where data is stored (important)
-For now, workspaces and tasks are saved in **this browser's localStorage**.
-Each person/browser sees only their own data — the team does **not** share
-boards yet, and clearing browser data deletes them. To share across the team,
-connect a backend and replace the method bodies in `assets/js/store.js`
-(`listWorkspaces`, `createWorkspace`, `getWorkspace`, `addMember`,
-`removeMember`, `addSection`, `renameSection`, `deleteSection`, `addTask`,
-`updateTask`, `moveTask`, `deleteTask`, `addSubtask`, `updateSubtask`,
-`deleteSubtask`, `addComment`, `deleteComment`, `addAttachments`,
-`deleteAttachment`, `getFile`, `setTaskDrive`) with API calls. The pages only call these async methods, so no
-page code needs to change.
+## Where data is stored
+Everything is in Supabase, so **every device and every teammate sees the same
+boards**, and changes show up live on other open screens (Supabase Realtime;
+also refreshed when a tab comes back to the foreground).
 
-### Attachments in demo mode
-File contents are saved in the browser's **IndexedDB** (not uploaded anywhere), so a
-file can only be opened on the device/browser that attached it. With a backend, send
-files to cloud storage (e.g. S3, Google Cloud Storage or Supabase Storage) inside
-`saveFiles` / `getFile` in `store.js`.
+- **Table `public.workspaces`** — one row per workspace; the whole board
+  (sections, tasks, subtasks, comments, members) is in `doc` (JSON).
+  Edits read the latest copy, apply the change and save with a version check,
+  so two people editing at once never overwrite each other.
+- **Storage bucket `attachments`** (private) — files at `<workspace id>/<file id>`, 10 MB max.
+- **Security (Row Level Security)** — the server enforces the roles: Super Admin
+  sees all workspaces; others only those where their email is in Members;
+  Guests can't change anything or upload; only Super Admin/Admin create
+  workspaces or change members. Schema and policies:
+  `supabase/migrations/20261105_shared_workspaces.sql`.
 
-## Cache busting
-Pages load CSS/JS as `assets/...?v=YYYYMMDD-N`. After changing any CSS/JS file, bump
-the version in all `.html` files so phones load the new code straight away:
-```
-sed -i -E 's#\?v=[0-9-]+#?v=NEW_VERSION#g' *.html
-```
+### Moving boards from the old per-browser version
+Boards created before this change were saved only in that browser. Super
+Admins/Admins see a banner on the Workspaces page: **Import them to the shared
+workspace list** — do it once on each device that has old boards. Files
+attached on that device are uploaded too. The old copy is left in the browser
+untouched.
 
 ## Protecting a new page
 ```html

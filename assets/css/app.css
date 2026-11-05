@@ -488,3 +488,11 @@ dialog.dialog--wide { width: min(720px, calc(100vw - 32px)); max-height: calc(10
   .user-table td { border: 0; padding: 4px 0; }
 }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* One-time import banner */
+.import-box {
+  background: var(--primary-soft); border: 1px solid var(--primary); border-radius: 12px;
+  padding: 16px 18px; margin: 0 0 24px; font-size: 14px;
+}
+.import-box p { margin: 6px 0 12px; color: var(--text); }
+.import-box .hint { margin: 10px 0 0; }

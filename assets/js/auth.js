@@ -176,6 +176,9 @@
   const Auth = {
     config: CONFIG,
 
+    /** The Supabase client (used by store.js for data and files). */
+    client: () => sb(),
+
     async login(email, password, remember) {
       clearLocal();
       setRemember(!!remember);
@@ -220,7 +223,8 @@
               cur.user = fresh; // keep the same expiry and storage place
               const inLocal = safe(() => !!ls().getItem(CONFIG.SESSION_KEY), false);
               safe(() => (inLocal ? ls() : ss()).setItem(CONFIG.SESSION_KEY, JSON.stringify(cur)));
-              global.location.reload(); // re-render with the new permissions
+              // Get a fresh token so the database sees the new role too, then re-render.
+              sb().auth.refreshSession().catch(() => {}).then(() => global.location.reload());
             }
           }).catch(() => { /* offline: keep working */ });
         } catch (e) { /* library not loaded: keep local session */ }

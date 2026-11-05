@@ -98,5 +98,43 @@
     }
   });
 
-  render();
+  /* ---------- One-time import of boards saved only in this browser ---------- */
+  const importBox = document.getElementById("import-box");
+  function renderImport() {
+    const local = Store.localBoards();
+    if (!local.length || !canCreate) { importBox.hidden = true; return; }
+    const names = local.map((w) => "“" + w.name + "”").join(", ");
+    const status = el("p", { class: "hint", "aria-live": "polite" });
+    const btn = el("button", { type: "button", class: "button button--primary button--sm",
+      text: "Import " + (local.length === 1 ? "it" : "them") + " to the shared workspace list" });
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        const r = await Store.importLocalBoards(session.user, (t) => { status.textContent = t; });
+        const parts = [];
+        if (r.imported.length) parts.push("Imported " + r.imported.join(", ") + ".");
+        if (r.skipped.length) parts.push(r.skipped.join(", ") + (r.skipped.length === 1 ? " was" : " were") + " already shared.");
+        if (r.missingFiles) parts.push(r.missingFiles + (r.missingFiles === 1 ? " file" : " files") + " couldn't be copied — please re-attach.");
+        UI.toast(parts.join(" ") || "Nothing to import.");
+        await render();
+        renderImport();
+      } catch (err) {
+        status.textContent = err.message;
+        btn.disabled = false;
+      }
+    });
+    importBox.replaceChildren(
+      el("strong", { text: local.length + (local.length === 1 ? " board is" : " boards are") + " saved only in this browser" }),
+      el("p", { text: names + (local.length === 1 ? " was" : " were") + " created before boards became shared. Import " +
+        (local.length === 1 ? "it" : "them") + " once so " + (local.length === 1 ? "it shows" : "they show") +
+        " on every device and for your team. Files attached on this device are copied too." }),
+      btn, status);
+    importBox.hidden = false;
+  }
+
+  render().catch((err) => {
+    subtitle.textContent = err.message || "Couldn't load workspaces.";
+  });
+  renderImport();
+  Store.subscribe(null, () => render().catch(() => {}));
 })();

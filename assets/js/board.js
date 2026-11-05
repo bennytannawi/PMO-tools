@@ -37,8 +37,10 @@
       titleEl.textContent = denied ? "No access" : "Workspace not found";
       document.title = (denied ? "No access" : "Not found") + " · PMO Tools";
       board.replaceChildren(el("div", { class: "empty", style: "flex:1" }, [
-        el("h2", { text: denied ? "You're not a member of this workspace" : "This workspace doesn't exist" }),
-        el("p", { text: denied ? "Ask a Super Admin or Admin to add you under Members." : "It may have been removed, or the link is incomplete." }),
+        el("h2", { text: denied ? "You're not a member of this workspace" : "Workspace not available" }),
+        el("p", { text: denied ? "Ask a Super Admin or Admin to add you under Members."
+          : /reach|connection/i.test(e.message || "") ? e.message
+          : "It doesn't exist, or you're not a member of it. Ask a Super Admin or Admin to add you under Members." }),
         el("a", { class: "button button--primary", href: "workspaces.html", text: "Back to workspaces" }),
       ]));
       return false;
@@ -551,10 +553,11 @@
   async function openFile(a) {
     const isView = /^image\//.test(a.type) || a.type === "application/pdf";
     const win = isView ? window.open("", "_blank") : null; // open now so pop-up blockers allow it
-    const blob = await Store.getFile(a.id);
+    const blob = await Store.getFile(a);
     if (!blob) {
       if (win) win.close();
-      UI.toast("This file isn't stored in this browser. In demo mode files stay on the device that uploaded them.");
+      UI.toast(a.missing ? "This file couldn't be copied when the board was imported. Please attach it again."
+        : "Couldn't open this file. Check your connection and try again.");
       return;
     }
     const url = URL.createObjectURL(blob);
@@ -572,7 +575,7 @@
     if (/^image\//.test(a.type)) {
       const put = (u) => { if (u) { img.src = u; img.hidden = false; } };
       if (thumbCache.has(a.id)) put(thumbCache.get(a.id));
-      else Store.getFile(a.id).then((b) => { const u = b ? URL.createObjectURL(b) : null; thumbCache.set(a.id, u); put(u); });
+      else Store.getFile(a).then((b) => { const u = b ? URL.createObjectURL(b) : null; thumbCache.set(a.id, u); put(u); });
     }
     return img;
   }
@@ -884,6 +887,27 @@
     dialog.close();
     run(() => Store.deleteTask(ws.id, id));
   });
+
+  /* ---------- Live mirroring: changes from other devices/people ---------- */
+  let remotePending = false;
+  function busyTyping() {
+    // Don't re-draw the board under someone who is typing in it or dragging a card.
+    const a = document.activeElement;
+    return dragId !== null || !!(a && board.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+  }
+  async function remoteRefresh() {
+    if (busyTyping()) { remotePending = true; return; }
+    remotePending = false;
+    if (!(await load())) { if (dialog.open) dialog.close(); return; }
+    render();
+    if (dialog.open) {
+      if (currentTask()) renderLive();
+      else { dialog.close(); UI.toast("This task was deleted by someone else."); }
+    }
+  }
+  board.addEventListener("focusout", () => setTimeout(() => { if (remotePending) remoteRefresh(); }, 50));
+  document.addEventListener("dragend", () => setTimeout(() => { if (remotePending) remoteRefresh(); }, 50));
+  Store.subscribe(wsId, remoteRefresh);
 
   // Close an open section menu when clicking elsewhere.
   document.addEventListener("click", (e) => {
