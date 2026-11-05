@@ -160,6 +160,7 @@
       if (!Array.isArray(t.comments)) t.comments = [];
       if (!("assignee" in t)) t.assignee = null;
       if (!("driveUrl" in t)) t.driveUrl = "";
+      if (!("driveName" in t)) t.driveName = "";
       if (!("dueDate" in t)) t.dueDate = "";
       if (!Array.isArray(t.attachments)) t.attachments = [];
       t.comments.forEach((c) => { if (!Array.isArray(c.attachments)) c.attachments = []; });
@@ -328,7 +329,7 @@
         if (!t) throw new Error("Enter a task name.");
         const task = {
           id: uid("task"), title: t, description: "", createdAt: Date.now(), createdBy: createdBy || "",
-          assignee: null, dueDate: "", subtasks: [], comments: [], attachments: [], driveUrl: "",
+          assignee: null, dueDate: "", subtasks: [], comments: [], attachments: [], driveUrl: "", driveName: "",
         };
         s.tasks.push(task);
         return task;
@@ -495,12 +496,14 @@
     /* ---------- Google Drive folder link (any workspace member) ---------- */
     canSetDrive(ws, user) { return isAdmin(user) || isMember(normalise(ws), user); },
 
-    setTaskDrive(wsId, taskId, url, actor) {
+    /** name = folder name shown on the button (optional; typed by the member). */
+    setTaskDrive(wsId, taskId, url, actor, name) {
       return mutate((data) => {
         const ws = findWs(data, wsId);
         requireMember(ws, actor, "change the Drive link");
         const { task } = findTask(ws, taskId);
         task.driveUrl = cleanDriveUrl(url);
+        task.driveName = task.driveUrl ? clean(name, 80) : "";
         return task;
       });
     },

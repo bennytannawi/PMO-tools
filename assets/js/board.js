@@ -160,7 +160,8 @@
     if (nF) badges.push(el("span", { class: "badge", title: nF + (nF === 1 ? " attachment" : " attachments"), text: "📎 " + nF }));
     const nC = (task.comments || []).length;
     if (nC) badges.push(el("span", { class: "badge", title: nC + (nC === 1 ? " comment" : " comments"), text: "💬 " + nC }));
-    if (task.driveUrl) badges.push(el("span", { class: "badge badge--drive", title: "Google Drive folder linked", text: "Drive" }));
+    if (task.driveUrl) badges.push(el("span", { class: "badge badge--drive", title: "Google Drive folder" + (task.driveName ? ": " + task.driveName : " linked"),
+      text: task.driveName ? "Drive · " + (task.driveName.length > 18 ? task.driveName.slice(0, 18) + "…" : task.driveName) : "Drive" }));
     if (badges.length) card.append(el("span", { class: "task__foot" }, [el("span", { class: "task__badges" }, badges)]));
     return card;
   }
@@ -730,7 +731,8 @@
 
     if (task.driveUrl) {
       nodes.push(el("a", { class: "button button--drive", href: task.driveUrl, target: "_blank", rel: "noopener noreferrer" }, [
-        driveIcon(), document.createTextNode("Open Google Drive folder"),
+        driveIcon(), el("span", { class: "drive-label", text: task.driveName ? task.driveName : "Open Google Drive folder" }),
+        el("span", { class: "drive-ext", "aria-hidden": "true", text: "↗" }),
       ]));
     }
 
@@ -741,23 +743,25 @@
       return;
     }
 
+    const nameInput = el("input", { type: "text", maxlength: "80", placeholder: "Folder name (shown on the button), e.g. Finance",
+      value: task.driveName || "", "aria-label": "Google Drive folder name", autocomplete: "off" });
     const input = el("input", { type: "url", placeholder: "Paste link: https://drive.google.com/drive/folders/…", value: task.driveUrl || "",
       "aria-label": "Google Drive folder link", autocomplete: "off" });
     const err = el("p", { class: "field__error" });
     const btn = el("button", { type: "button", class: "button button--ghost button--sm", text: task.driveUrl ? "Update" : "Link" });
-    nodes.push(el("div", { class: "drive-edit" }, [input, btn]), err);
+    nodes.push(el("div", { class: "drive-edit drive-edit--name" }, [nameInput]), el("div", { class: "drive-edit" }, [input, btn]), err);
     if (!task.driveUrl) nodes.push(el("p", { class: "hint", text: "In Google Drive: open the folder → Share → Copy link, then paste it here." }));
 
     input.addEventListener("input", () => { err.textContent = ""; });
     const save = async () => {
       try {
-        await Store.setTaskDrive(ws.id, task.id, input.value, me);
+        await Store.setTaskDrive(ws.id, task.id, input.value, me, nameInput.value);
         UI.toast(input.value.trim() ? "Drive folder linked." : "Drive link removed.");
       } catch (e) { err.textContent = e.message; return; }
       await refresh(); if (currentTask()) renderLive();
     };
     btn.addEventListener("click", save);
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } });
+    [input, nameInput].forEach((i) => i.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } }));
     driveBox.replaceChildren(...nodes);
   }
 

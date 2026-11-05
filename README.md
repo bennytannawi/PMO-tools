@@ -31,8 +31,10 @@ Create a simple PMO tools similar to Asana for the team
     (shown as *(edited 5 Nov 2026, 15:40)*; the original time stamp stays) and delete them;
     admins can delete any comment.
   - **Google Drive folder** — any workspace member can paste or change the folder link
-    (must be a `https://drive.google.com/` link); everyone sees an *Open Google Drive
-    folder* button and the card shows a **Drive** tag.
+    (must be a `https://drive.google.com/` link) and type a **folder name**. The button
+    shows that name (e.g. *Finance ↗*), or *Open Google Drive folder* if left blank; the
+    card shows **Drive · Finance**. (The name is typed, not read from Drive — reading it
+    automatically would need Google sign-in / the Drive API.)
   - Name, description, section and PIC save with **Save**; subtasks, comments and the
     Drive link save instantly.
 - **Workspace members** (Members button on the board) — add by name + email, remove
