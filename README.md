@@ -13,6 +13,18 @@ Create a simple PMO tools similar to Asana for the team
   for custom sections (rename/delete via the ⋯ menu; tasks in a deleted section
   move to To do). Tasks: add, edit name/description, delete, drag & drop between
   or within sections, or move via the task dialog (works on phones).
+- **Search & PIC filter** (toolbar above the cards on the board):
+  - **Search** — matches words in the card title and inside the card (description,
+    subtasks, comments, file names, Drive folder name). Matches are highlighted; if a
+    word is only inside the card, it shows *Found in comments* (etc.). Press `/` to jump
+    to the search box, `Esc` to clear it.
+  - **PIC filter** — the *PIC* dropdown (Everyone / My tasks / Unassigned / each member),
+    or type `@name` in the search box: `@rivano` shows every card where Rivan Oktavianus
+    is PIC (matches the start of the handle or of any name). Both can be combined, e.g.
+    `@rivan budget`.
+  - Column counts show *matches/total* (e.g. `1/3`), with *Showing 3 of 6 tasks* and a
+    **Clear filters** link. The filter is kept in the page link (`?q=…&pic=…`), so a
+    member can bookmark their own view. Drag & drop still works while filtered.
 - **Task details** (click a card) — two-panel view with:
   - **Project** — read-only, always the board (workspace) name.
   - **PIC / assigned to** — pick from the workspace members. On the board, each card shows

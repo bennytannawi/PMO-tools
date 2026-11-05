@@ -56,6 +56,136 @@
     await refresh();
   }
 
+  /* ---------- Search & PIC filter ---------- */
+  // Search: words must all appear in the card (title, description, subtasks,
+  // comments, file names, Drive folder name). "@name" in the search box filters
+  // by PIC (prefix of the @handle or of any name, e.g. @rivano → Rivan Oktavianus).
+  // The PIC dropdown filters too; both apply together. Kept in the URL (?q=…&pic=…).
+  const btSearch = document.getElementById("bt-search");
+  const btSearchClear = document.getElementById("bt-search-clear");
+  const btPic = document.getElementById("bt-pic");
+  const btReset = document.getElementById("bt-reset");
+  const btResult = document.getElementById("bt-result");
+  const startParams = new URLSearchParams(location.search);
+  const filter = { q: startParams.get("q") || "", pic: startParams.get("pic") || "" }; // pic: "" | "me" | "none" | handle
+  btSearch.value = filter.q;
+
+  const norm = (s) => String(s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+  function parseQuery() {
+    const words = [], pics = [];
+    norm(filter.q).split(/\s+/).forEach((w) => {
+      if (!w) return;
+      if (w[0] === "@") { const h = w.slice(1).replace(/[^a-z0-9]/g, ""); if (h) pics.push(h); }
+      else words.push(w);
+    });
+    return { words, pics };
+  }
+
+  function isFiltering() { const p = parseQuery(); return !!(p.words.length || p.pics.length || filter.pic); }
+
+  function handleOf(person) {
+    const h = Store.mentionHandles(ws.members).find((x) => Store.samePerson(x, person));
+    return h ? h.handle : norm(person.name).replace(/[^a-z0-9]/g, "");
+  }
+
+  function picMatches(task, q) {
+    const a = task.assignee;
+    if (filter.pic === "none" && a) return false;
+    if (filter.pic === "me" && !Store.samePerson(a, me)) return false;
+    if (filter.pic && filter.pic !== "none" && filter.pic !== "me" && (!a || handleOf(a) !== filter.pic)) return false;
+    if (!q.pics.length) return true;
+    if (!a) return false;
+    const handle = handleOf(a);
+    const nameParts = norm(a.name).split(/\s+/);
+    return q.pics.some((p) => handle.startsWith(p) || nameParts.some((n) => n.startsWith(p)));
+  }
+
+  function haystack(task) {
+    return norm([
+      task.title, task.description, task.driveName,
+      ...(task.subtasks || []).map((s) => s.title),
+      ...(task.comments || []).flatMap((c) => [c.text, ...(c.attachments || []).map((f) => f.name)]),
+      ...(task.attachments || []).map((f) => f.name),
+    ].join("\n"));
+  }
+
+  function matches(task, q) {
+    q = q || parseQuery();
+    if (!picMatches(task, q)) return false;
+    if (!q.words.length) return true;
+    const text = haystack(task);
+    return q.words.every((w) => text.includes(w));
+  }
+
+  /** Text with the searched words wrapped in <mark>. */
+  function highlighted(text, words) {
+    if (!words.length) return [document.createTextNode(text)];
+    const lower = norm(text);
+    const hits = [];
+    words.forEach((w) => { let i = lower.indexOf(w); while (i !== -1) { hits.push([i, i + w.length]); i = lower.indexOf(w, i + w.length); } });
+    if (!hits.length || lower.length !== text.length) return [document.createTextNode(text)];
+    hits.sort((x, y) => x[0] - y[0]);
+    const out = []; let pos = 0;
+    hits.forEach(([s, e]) => {
+      if (e <= pos) return;
+      s = Math.max(s, pos);
+      if (s > pos) out.push(document.createTextNode(text.slice(pos, s)));
+      out.push(el("mark", { class: "hit", text: text.slice(s, e) }));
+      pos = e;
+    });
+    if (pos < text.length) out.push(document.createTextNode(text.slice(pos)));
+    return out;
+  }
+
+  function renderPicOptions() {
+    const hs = Store.mentionHandles(ws.members);
+    const sig = hs.map((h) => h.handle + "|" + h.name).join(",");
+    const known = ["", "me", "none"].includes(filter.pic) || hs.some((h) => h.handle === filter.pic);
+    if (!known) filter.pic = "";
+    if (btPic.dataset.sig !== sig) {
+      btPic.dataset.sig = sig;
+      btPic.replaceChildren(
+        el("option", { value: "", text: "Everyone" }),
+        el("option", { value: "me", text: "My tasks" }),
+        el("option", { value: "none", text: "Unassigned" }),
+        el("optgroup", { label: "Members" }, hs.map((h) => el("option", { value: h.handle, text: h.name + "  ·  @" + h.handle }))),
+      );
+    }
+    btPic.value = filter.pic;
+    btPic.classList.toggle("is-active", !!filter.pic);
+  }
+
+  function syncUrl() {
+    const p = new URLSearchParams(location.search);
+    filter.q.trim() ? p.set("q", filter.q.trim()) : p.delete("q");
+    filter.pic ? p.set("pic", filter.pic) : p.delete("pic");
+    history.replaceState(null, "", location.pathname + "?" + p.toString());
+  }
+
+  function onFilterChange() {
+    btSearchClear.hidden = !filter.q;
+    syncUrl();
+    if (ws) render();
+  }
+
+  btSearch.addEventListener("input", () => { filter.q = btSearch.value; onFilterChange(); });
+  btSearch.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && btSearch.value) { e.preventDefault(); btSearch.value = ""; filter.q = ""; onFilterChange(); }
+  });
+  btSearchClear.addEventListener("click", () => { btSearch.value = ""; filter.q = ""; onFilterChange(); btSearch.focus(); });
+  btPic.addEventListener("change", () => { filter.pic = btPic.value; onFilterChange(); });
+  btReset.addEventListener("click", () => { btSearch.value = ""; filter.q = ""; filter.pic = ""; onFilterChange(); });
+  btSearchClear.hidden = !filter.q;
+  // "/" jumps to the search box (when not already typing somewhere).
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+    const a = document.activeElement;
+    if (a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return;
+    if (document.querySelector("dialog[open]")) return;
+    e.preventDefault(); btSearch.focus(); btSearch.select();
+  });
+
   /* ---------- Render ---------- */
   function render() {
     titleEl.textContent = ws.name;
@@ -64,23 +194,40 @@
     const done = ws.sections.filter((s) => s.isDone).reduce((n, s) => n + s.tasks.length, 0);
     statsEl.textContent = total + (total === 1 ? " task" : " tasks") + " · " + done + " completed" + (editable ? "" : " · View only");
     renderMemberAvatars();
+    renderPicOptions();
 
+    const q = parseQuery();
+    const filtering = isFiltering();
+    const visible = (s) => (filtering ? s.tasks.filter((t) => matches(t, q)) : s.tasks);
+    let shown = 0;
     let defaultIdx = 0;
-    const cols = ws.sections.map((s) => column(s, s.isDefault ? DEFAULT_COLORS[defaultIdx++] : "var(--sec-custom)"));
+    const cols = ws.sections.map((s) => {
+      const list = visible(s);
+      shown += list.length;
+      return column(s, s.isDefault ? DEFAULT_COLORS[defaultIdx++] : "var(--sec-custom)", list, filtering, q.words);
+    });
     if (editable) cols.push(addSectionColumn());
     board.replaceChildren(...cols);
+    board.classList.toggle("is-filtered", filtering);
+
+    btReset.hidden = !filtering;
+    btResult.textContent = filtering
+      ? (shown ? "Showing " + shown + " of " + total + (total === 1 ? " task" : " tasks") : "No tasks match")
+      : "";
 
     const focus = board.querySelector("[data-autofocus]");
-    if (focus) focus.focus();
+    if (focus && document.activeElement !== btSearch && document.activeElement !== btPic) focus.focus();
   }
 
-  function column(section, color) {
+  function column(section, color, list, filtering, words) {
+    list = list || section.tasks;
     const cards = el("div", { class: "column__cards", "data-section": section.id },
-      section.tasks.map((t) => taskCard(t, section)));
+      list.length || !filtering ? list.map((t) => taskCard(t, section, words))
+        : [el("p", { class: "column__empty", text: section.tasks.length ? "No matching tasks" : "No tasks" })]);
     wireDrop(cards, section.id);
 
     return el("section", { class: "column", style: "--dot:" + color, "data-done": String(!!section.isDone), "aria-label": section.name }, [
-      columnHead(section),
+      columnHead(section, filtering ? list.length : null),
       cards,
       el("div", { class: "column__foot" }, [
         ui.addTaskIn === section.id ? addTaskForm(section) :
@@ -91,7 +238,7 @@
     ]);
   }
 
-  function columnHead(section) {
+  function columnHead(section, shownCount) {
     if (ui.renaming === section.id) {
       return el("div", { class: "column__head" }, [inlineForm({
         value: section.name, maxlength: 60, placeholder: "Section name", submitLabel: "Save",
@@ -102,7 +249,10 @@
     const head = el("div", { class: "column__head" }, [
       el("span", { class: "column__dot", "aria-hidden": "true" }),
       el("h2", { class: "column__name", style: "margin:0;font-size:14px", text: section.name, title: section.name }),
-      el("span", { class: "column__count", text: String(section.tasks.length), "aria-label": section.tasks.length + " tasks" }),
+      shownCount === null || shownCount === undefined
+        ? el("span", { class: "column__count", text: String(section.tasks.length), "aria-label": section.tasks.length + " tasks" })
+        : el("span", { class: "column__count column__count--filtered", text: shownCount + "/" + section.tasks.length,
+            "aria-label": shownCount + " of " + section.tasks.length + " tasks match" }),
     ]);
     if (!section.isDefault && editable) head.append(sectionMenu(section));
     return head;
@@ -132,7 +282,8 @@
     ]);
   }
 
-  function taskCard(task, section) {
+  function taskCard(task, section, words) {
+    words = words || [];
     // A div (not a button) so the PIC chip inside it can be its own button.
     const card = el("div", {
       class: "task", role: "button", tabindex: "0", draggable: editable ? "true" : "false", "data-task": task.id,
@@ -147,10 +298,25 @@
         requestAnimationFrame(() => card.classList.add("is-dragging"));
       },
       ondragend: () => { dragId = null; card.classList.remove("is-dragging"); clearMarkers(); },
-    }, [el("span", { class: "task__top" }, [el("span", { class: "task__title", text: task.title }), picChip(task)])]);
+    }, [el("span", { class: "task__top" }, [el("span", { class: "task__title" }, highlighted(task.title, words)), picChip(task)])]);
     if (task.description) {
       const d = task.description.length > 90 ? task.description.slice(0, 90) + "…" : task.description;
-      card.append(el("span", { class: "task__desc", text: d }));
+      card.append(el("span", { class: "task__desc" }, highlighted(d, words)));
+    }
+    // Searched words found only in hidden parts (subtasks, comments, files): say where.
+    if (words.length) {
+      const visibleText = norm(task.title + "\n" + (task.description || "").slice(0, 90));
+      const rest = words.filter((w) => !visibleText.includes(w));
+      if (rest.length) {
+        const where = [];
+        const has = (arr) => rest.some((w) => norm(arr.join("\n")).includes(w));
+        if (has((task.subtasks || []).map((x) => x.title))) where.push("subtasks");
+        if (has((task.comments || []).map((c) => c.text))) where.push("comments");
+        if (has((task.attachments || []).map((f) => f.name).concat((task.comments || []).flatMap((c) => (c.attachments || []).map((f) => f.name))))) where.push("files");
+        if (has([task.description || ""]) && task.description.length > 90) where.unshift("description");
+        if (has([task.driveName || ""])) where.push("Drive folder");
+        if (where.length) card.append(el("span", { class: "task__match", text: "Found in " + where.join(", ") }));
+      }
     }
 
     const badges = [];
@@ -250,6 +416,10 @@
       onSubmit: (v) => run(async () => {
         await Store.addTask(ws.id, section.id, v, session.user.name);
         ui.addTaskIn = section.id; // keep open to add several in a row
+      }).then(() => {
+        const s = ws && ws.sections.find((x) => x.id === section.id);
+        const t = s && s.tasks[s.tasks.length - 1];
+        if (t && isFiltering() && !matches(t)) UI.toast("Task added, but it's hidden by the current search/filter.");
       }),
       onCancel: () => { ui.addTaskIn = null; render(); },
     });
@@ -309,7 +479,19 @@
   function dropIndex(container, y) {
     const cards = [...container.querySelectorAll(".task")].filter((c) => c.dataset.task !== dragId);
     const i = cards.findIndex((c) => { const r = c.getBoundingClientRect(); return y < r.top + r.height / 2; });
-    return { index: i === -1 ? cards.length : i, before: i === -1 ? null : cards[i] };
+    return { index: i === -1 ? cards.length : i, before: i === -1 ? null : cards[i], last: cards[cards.length - 1] || null };
+  }
+
+  /** Position among ALL tasks of the section (the dragged one excluded), so a drop
+   *  lands in the right place even when search/filter hides some cards. */
+  function realIndex(sectionId, id, drop) {
+    const sec = ws.sections.find((s) => s.id === sectionId);
+    if (!sec) return drop.index;
+    const others = sec.tasks.filter((t) => t.id !== id);
+    const pos = (card) => others.findIndex((t) => t.id === card.dataset.task);
+    if (drop.before && pos(drop.before) !== -1) return pos(drop.before);
+    if (drop.last && pos(drop.last) !== -1) return pos(drop.last) + 1;
+    return others.length;
   }
 
   function wireDrop(container, sectionId) {
@@ -330,8 +512,8 @@
     container.addEventListener("drop", (e) => {
       if (!dragId) return;
       e.preventDefault();
-      const { index } = dropIndex(container, e.clientY);
       const id = dragId;
+      const index = realIndex(sectionId, id, dropIndex(container, e.clientY));
       dragId = null;
       clearMarkers();
       run(() => Store.moveTask(ws.id, id, sectionId, index));
