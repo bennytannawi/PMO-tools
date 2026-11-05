@@ -125,6 +125,13 @@ file can only be opened on the device/browser that attached it. With a backend, 
 files to cloud storage (e.g. S3, Google Cloud Storage or Supabase Storage) inside
 `saveFiles` / `getFile` in `store.js`.
 
+## Cache busting
+Pages load CSS/JS as `assets/...?v=YYYYMMDD-N`. After changing any CSS/JS file, bump
+the version in all `.html` files so phones load the new code straight away:
+```
+sed -i -E 's#\?v=[0-9-]+#?v=NEW_VERSION#g' *.html
+```
+
 ## Protecting a new page
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
