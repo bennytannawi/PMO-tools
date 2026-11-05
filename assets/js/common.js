@@ -47,8 +47,13 @@
     initTopbar(session) {
       const box = document.getElementById("topbar-user");
       if (!box || !session) return;
+      const role = global.Roles ? Roles.of(session.user) : "member";
+      if (global.Roles && Roles.canInvite(session.user)) {
+        box.append(UI.el("a", { class: "button button--ghost button--sm", href: "users.html", text: "Users" }));
+      }
       box.append(
         UI.el("span", { class: "name", text: session.user.name }),
+        UI.el("span", { class: "role-badge role-badge--" + role, text: global.Roles ? Roles.LABELS[role] : "" }),
         UI.el("span", { class: "avatar", text: UI.initials(session.user.name), title: session.user.email }),
         UI.el("button", { type: "button", class: "button button--ghost button--sm", text: "Sign out", onclick: () => Auth.logout() })
       );

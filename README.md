@@ -46,6 +46,7 @@ Create a simple PMO tools similar to Asana for the team
 index.html              Login page
 reset-password.html     Set password (invitation / reset links land here)
 workspaces.html         Workspaces list + create (landing page after login)
+users.html              Users: invite, roles, remove (Super Admin / Admin)
 workspace.html          Kanban board for one workspace
 dashboard.html          Redirect to workspaces.html (kept for old links)
 assets/css/login.css    Login styles + shared colour tokens (light/dark)
@@ -53,6 +54,8 @@ assets/css/app.css      Styles for signed-in pages
 assets/js/config.js     Supabase project URL + publishable key
 assets/js/auth.js       Auth service — the only file that talks to Supabase Auth
 assets/js/reset-password.js  Set-password page (invites + password reset)
+assets/js/users.js      Users page behaviour
+supabase/functions/manage-users/index.ts  Server function for user management
 assets/js/store.js      Data store — the only file that reads/writes workspace data
 assets/js/common.js     Shared helpers (top bar, toast, element builder)
 assets/js/login.js      Login form behaviour
@@ -86,19 +89,29 @@ public by design). Never put the secret / `service_role` key in this repo.
    - *Redirect URLs*: add `https://bennytannawi.github.io/PMO-tools/reset-password.html`
      (and `http://localhost:8000/reset-password.html` for local testing).
 
-### Add a team member
-**Authentication → Users → Add user → Send invitation**, enter their work email.
-They get an email, click the link, choose a password, and land in PMO Tools.
+### Roles
+| Role | Workspaces | Cards | Invite users | Change roles |
+|---|---|---|---|---|
+| **Super Admin** | All | Edit | ✓ (any role) | ✓ |
+| **Admin** | Assigned only | Edit | ✓ (not Super Admin) | – |
+| **Member** | Assigned only | Edit | – | – |
+| **Guest** | Assigned only | View only | – | – |
 
-To give someone a display name or the admin role, run in **SQL Editor**:
-```sql
-update auth.users
-set raw_user_meta_data = raw_user_meta_data || '{"name":"Benny Tannawi"}',
-    raw_app_meta_data  = raw_app_meta_data  || '{"role":"admin"}'
-where email = 'name@company.com';
-```
-(Role changes apply the next time that person signs in.) Without a name, the
-part of the email before "@" is shown. Remove someone with **Users → ⋯ → Delete user**.
+"Assigned" = listed under the board's **Members**. Only Super Admins and Admins
+create workspaces and add/remove workspace members (picked from people who have
+an account). Super Admins and Admins can also delete others' comments/files.
+The role is stored in Supabase `app_metadata.role` (users can't change it);
+a missing role counts as Member. Role changes apply on the person's next page load.
+
+### Add a team member
+Super Admins and Admins: **Users** (top bar) → *Invite someone* → name, email,
+role → **Send invitation**. The person gets an email, sets a password, and can sign
+in. Then add them to workspaces from each board's **Members** button.
+Super Admins change roles and remove people on the same page.
+
+The Users page calls the `manage-users` Edge Function
+(`supabase/functions/manage-users/index.ts`), which holds the admin key on the
+server and re-checks the caller's role on every request.
 
 ### Email limits
 Supabase's built-in email sender allows only a few emails per hour and is meant

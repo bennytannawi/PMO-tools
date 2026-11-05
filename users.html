@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Users · PMO Tools</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/login.css?v=20261105-4" />
+  <link rel="stylesheet" href="assets/css/app.css?v=20261105-4" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+  <script src="assets/js/config.js?v=20261105-4"></script>
+  <script src="assets/js/auth.js?v=20261105-4"></script>
+  <script>window.__session = Auth.requireAuth();</script>
+</head>
+<body class="app">
+  <header class="topbar">
+    <a class="logo" href="workspaces.html">
+      <span class="logo__mark">P</span>
+      <span class="logo__name"><span class="logo__text">PMO Tools</span><span class="logo__sub">Strategic Planning and Analysis</span></span>
+    </a>
+    <div class="topbar__user" id="topbar-user"></div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1>Users</h1>
+        <p id="users-subtitle">Invite people to PMO Tools and choose what they can do.</p>
+      </div>
+      <a class="button button--ghost" href="workspaces.html">Back to workspaces</a>
+    </div>
+
+    <div id="no-access" class="empty" hidden>
+      <h2>Only Super Admins and Admins can manage users</h2>
+      <p>Ask a Super Admin if you need someone invited.</p>
+      <a class="button button--primary" href="workspaces.html">Back to workspaces</a>
+    </div>
+
+    <div class="users-layout" id="users-layout" hidden>
+      <section class="panel-card" aria-labelledby="list-title">
+        <h2 id="list-title">People</h2>
+        <p id="list-meta">Loading…</p>
+        <table class="user-table" id="user-table" hidden>
+          <thead><tr><th>Person</th><th>Role</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody id="user-rows"></tbody>
+        </table>
+      </section>
+
+      <aside class="panel-card" aria-labelledby="invite-title">
+        <h2 id="invite-title">Invite someone</h2>
+        <p>They'll get an email with a link to set their password.</p>
+        <form id="invite-form" novalidate>
+          <div class="field">
+            <label for="inv-name">Name</label>
+            <input id="inv-name" type="text" maxlength="80" autocomplete="off" placeholder="e.g. Rina Kusuma" />
+            <p class="field__error" id="inv-name-error"></p>
+          </div>
+          <div class="field">
+            <label for="inv-email">Work email</label>
+            <input id="inv-email" type="email" maxlength="120" autocomplete="off" placeholder="name@company.com" required />
+            <p class="field__error" id="inv-email-error"></p>
+          </div>
+          <div class="field">
+            <label for="inv-role">Role</label>
+            <select id="inv-role"></select>
+            <p class="hint" id="inv-role-hint"></p>
+          </div>
+          <div id="invite-alert" class="alert" role="alert" hidden></div>
+          <button type="submit" class="btn" id="invite-btn">
+            <span class="btn__label">Send invitation</span>
+            <span class="btn__spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+        <ul class="role-guide" id="role-guide"></ul>
+        <p class="hint">After inviting, add the person to workspaces from each board's <strong>Members</strong> button. Super Admins see every workspace automatically.</p>
+      </aside>
+    </div>
+  </main>
+
+  <script src="assets/js/common.js?v=20261105-4"></script>
+  <script src="assets/js/users.js?v=20261105-4"></script>
+</body>
+</html>

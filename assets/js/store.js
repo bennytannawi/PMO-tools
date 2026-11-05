@@ -5,6 +5,11 @@
  * Store.* methods, so moving to a real backend later means editing this
  * file only (same pattern as auth.js).
  *
+ * Permissions follow the user's role (Roles in auth.js) and workspace
+ * membership. NOTE: while data is in localStorage these checks run in the
+ * browser only; when data moves to Supabase they must be enforced with
+ * Row Level Security too.
+ *
  * MODE
  *   "demo" : data is kept in this browser's localStorage. Each person/browser
  *            sees only their own data — NOT shared with the team.
@@ -54,6 +59,13 @@
     const ws = data.workspaces.find((w) => w.id === wsId);
     if (!ws) throw new Error("Workspace not found.");
     return normalise(ws);
+  }
+
+  /** Workspace for a change: must be able to edit cards in it. */
+  function editWs(data, wsId, actor) {
+    const ws = findWs(data, wsId);
+    requireEdit(ws, me(actor));
+    return ws;
   }
 
   function findSection(ws, sectionId) {
@@ -143,12 +155,32 @@
     return !!a.name && a.name === b.name;
   }
 
-  function isMember(ws, user) { return ws.members.some((m) => samePerson(m, user)); }
-  function isAdmin(user) { return !!user && user.role === "admin"; }
-
-  function requireMember(ws, user, what) {
-    if (!isMember(ws, user) && !isAdmin(user)) throw new Error("Only workspace members can " + what + ".");
+  /* Roles (see Roles in auth.js):
+   *   super_admin  every workspace; edits everything
+   *   admin        assigned workspaces; edits all cards; manages members; moderates
+   *   member       assigned workspaces; edits all cards
+   *   guest        assigned workspaces; view only
+   * "Assigned" = listed in the workspace's Members. */
+  const R = () => global.Roles;
+  function me(actor) {
+    if (actor && typeof actor === "object" && actor.email) return actor;
+    const s = global.Auth && global.Auth.getSession();
+    return s ? s.user : null;
   }
+  function isMember(ws, user) { return ws.members.some((m) => samePerson(m, user)); }
+  function isAdmin(user) { return !!user && R().canModerate(user); } // can delete others' comments/files
+  function canView(ws, user) { return !!user && (R().seesAllWorkspaces(user) || isMember(ws, user)); }
+  function canEdit(ws, user) { return canView(ws, user) && R().canEditCards(user); }
+  function canManageMembers(ws, user) { return canView(ws, user) && R().canManageWorkspaceMembers(user); }
+
+  function requireView(ws, user) {
+    if (!canView(ws, user)) throw new Error("You don't have access to this workspace.");
+  }
+  function requireEdit(ws, user) {
+    requireView(ws, user);
+    if (!R().canEditCards(user)) throw new Error("Guests can view only. Ask an Admin if you need to make changes.");
+  }
+
 
   /** Fill in fields added after a workspace was first saved (older data). */
   function normalise(ws) {
@@ -194,29 +226,40 @@
 
   // Every mutation: load → change → save → return a fresh copy.
   function mutate(fn) {
-    const data = load();
-    const result = fn(data);
-    save(data);
-    return Promise.resolve(JSON.parse(JSON.stringify(result === undefined ? null : result)));
+    try {
+      const data = load();
+      const result = fn(data);
+      save(data);
+      return Promise.resolve(JSON.parse(JSON.stringify(result === undefined ? null : result)));
+    } catch (e) { return Promise.reject(e); }
   }
 
   const Store = {
     config: CONFIG,
 
     /* ---------- Workspaces ---------- */
-    async listWorkspaces() {
+    /** Only the workspaces this user may see (Super Admin: all). */
+    async listWorkspaces(user) {
+      const u = me(user);
       return load().workspaces
+        .map(normalise)
+        .filter((ws) => canView(ws, u))
         .map(summary)
         .sort((a, b) => b.createdAt - a.createdAt);
     },
 
-    async getWorkspace(wsId) {
-      return JSON.parse(JSON.stringify(findWs(load(), wsId)));
+    async getWorkspace(wsId, user) {
+      const ws = findWs(load(), wsId);
+      requireView(ws, me(user));
+      return JSON.parse(JSON.stringify(ws));
     },
 
     /** createdBy may be a user object {name, email} (preferred) or a name. */
     createWorkspace(name, createdBy) {
       return mutate((data) => {
+        if (!R().canCreateWorkspace(me(typeof createdBy === "object" ? createdBy : null))) {
+          throw new Error("Only Super Admins and Admins can create workspaces.");
+        }
         const n = clean(name, CONFIG.MAX_NAME);
         if (!n) throw new Error("Enter a workspace name.");
         if (data.workspaces.some((w) => w.name.toLowerCase() === n.toLowerCase())) {
@@ -244,12 +287,15 @@
 
     /* ---------- Members ---------- */
     isMember(ws, user) { return isMember(normalise(ws), user); },
-    canManageMembers(ws, user) { return isAdmin(user) || isMember(normalise(ws), user); },
+    canView(ws, user) { return canView(normalise(ws), me(user)); },
+    canEdit(ws, user) { return canEdit(normalise(ws), me(user)); },
+    canManageMembers(ws, user) { return canManageMembers(normalise(ws), me(user)); },
+    canModerate(user) { return isAdmin(me(user)); },
 
     addMember(wsId, member, actor) {
       return mutate((data) => {
         const ws = findWs(data, wsId);
-        requireMember(ws, actor, "add members");
+        if (!canManageMembers(ws, me(actor))) throw new Error("Only Super Admins and Admins can add members.");
         const m = person(member);
         if (!m.name) throw new Error("Enter the member's name.");
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m.email)) throw new Error("Enter a valid email address.");
@@ -265,7 +311,7 @@
     removeMember(wsId, member, actor) {
       return mutate((data) => {
         const ws = findWs(data, wsId);
-        requireMember(ws, actor, "remove members");
+        if (!canManageMembers(ws, me(actor))) throw new Error("Only Super Admins and Admins can remove members.");
         if (ws.members.length <= 1) throw new Error("A workspace needs at least one member.");
         const before = ws.members.length;
         ws.members = ws.members.filter((x) => !samePerson(x, member));
@@ -281,7 +327,7 @@
     /* ---------- Sections ---------- */
     addSection(wsId, name) {
       return mutate((data) => {
-        const ws = findWs(data, wsId);
+        const ws = editWs(data, wsId);
         const n = clean(name, CONFIG.MAX_NAME);
         if (!n) throw new Error("Enter a section name.");
         if (ws.sections.some((s) => s.name.toLowerCase() === n.toLowerCase())) {
@@ -295,7 +341,7 @@
 
     renameSection(wsId, sectionId, name) {
       return mutate((data) => {
-        const ws = findWs(data, wsId);
+        const ws = editWs(data, wsId);
         const s = findSection(ws, sectionId);
         if (s.isDefault) throw new Error("Default sections can't be renamed.");
         const n = clean(name, CONFIG.MAX_NAME);
@@ -311,7 +357,7 @@
     /** Deletes a custom section; its tasks move to the first section ("To do"). */
     deleteSection(wsId, sectionId) {
       return mutate((data) => {
-        const ws = findWs(data, wsId);
+        const ws = editWs(data, wsId);
         const s = findSection(ws, sectionId);
         if (s.isDefault) throw new Error("Default sections can't be deleted.");
         ws.sections[0].tasks.push(...s.tasks);
@@ -323,7 +369,7 @@
     /* ---------- Tasks ---------- */
     addTask(wsId, sectionId, title, createdBy) {
       return mutate((data) => {
-        const ws = findWs(data, wsId);
+        const ws = editWs(data, wsId);
         const s = findSection(ws, sectionId);
         const t = clean(title, CONFIG.MAX_TASK_TITLE);
         if (!t) throw new Error("Enter a task name.");
@@ -338,7 +384,7 @@
 
     updateTask(wsId, taskId, fields) {
       return mutate((data) => {
-        const ws = findWs(data, wsId);
+        const ws = editWs(data, wsId);
         const { task } = findTask(ws, taskId);
         if ("title" in fields) {
           const t = clean(fields.title, CONFIG.MAX_TASK_TITLE);
@@ -366,7 +412,7 @@
     /** Move a task to another (or the same) section at a position. */
     moveTask(wsId, taskId, toSectionId, toIndex) {
       return mutate((data) => {
-        const ws = findWs(data, wsId);
+        const ws = editWs(data, wsId);
         const from = findTask(ws, taskId);
         const to = findSection(ws, toSectionId);
         from.section.tasks.splice(from.index, 1);
@@ -380,7 +426,7 @@
     /* ---------- Subtasks (checklist) ---------- */
     addSubtask(wsId, taskId, title) {
       return mutate((data) => {
-        const { task } = findTask(findWs(data, wsId), taskId);
+        const { task } = findTask(editWs(data, wsId), taskId);
         const t = clean(title, CONFIG.MAX_SUBTASK);
         if (!t) throw new Error("Enter a subtask.");
         const sub = { id: uid("sub"), title: t, done: false, createdAt: Date.now() };
@@ -391,7 +437,7 @@
 
     updateSubtask(wsId, taskId, subId, fields) {
       return mutate((data) => {
-        const { task } = findTask(findWs(data, wsId), taskId);
+        const { task } = findTask(editWs(data, wsId), taskId);
         const sub = task.subtasks.find((x) => x.id === subId);
         if (!sub) throw new Error("Subtask not found.");
         if ("done" in fields) sub.done = !!fields.done;
@@ -406,7 +452,7 @@
 
     deleteSubtask(wsId, taskId, subId) {
       return mutate((data) => {
-        const { task } = findTask(findWs(data, wsId), taskId);
+        const { task } = findTask(editWs(data, wsId), taskId);
         task.subtasks = task.subtasks.filter((x) => x.id !== subId);
       });
     },
@@ -414,8 +460,7 @@
     /* ---------- Comments (workspace members only, time-stamped) ---------- */
     /** Text, files, or both. Files are stored first, then the comment is saved with their timestamp. */
     async addComment(wsId, taskId, text, author, files) {
-      const pre = findWs(load(), wsId);
-      requireMember(pre, author, "comment");
+      const pre = editWs(load(), wsId, author);
       findTask(pre, taskId);
       const body = String(text || "").trim().slice(0, CONFIG.MAX_COMMENT);
       const list = checkFiles(files);
@@ -423,7 +468,7 @@
       const metas = await saveFiles(list, author);
       try {
         return await mutate((data) => {
-          const { task } = findTask(findWs(data, wsId), taskId);
+          const { task } = findTask(editWs(data, wsId), taskId);
           const c = { id: uid("cmt"), text: body, author: person(author), createdAt: Date.now(), attachments: metas };
           metas.forEach((m) => { m.createdAt = c.createdAt; });
           task.comments.push(c);
@@ -435,7 +480,7 @@
     /** Only the author can edit their comment's text. Keeps the original time stamp and records editedAt. */
     editComment(wsId, taskId, commentId, text, actor) {
       return mutate((data) => {
-        const { task } = findTask(findWs(data, wsId), taskId);
+        const { task } = findTask(editWs(data, wsId), taskId);
         const c = task.comments.find((x) => x.id === commentId);
         if (!c) throw new Error("Comment not found.");
         if (!samePerson(c.author, actor)) throw new Error("You can only edit your own comments.");
@@ -449,7 +494,7 @@
     /** Authors can delete their own comments; admins can delete any. Files in the comment are deleted too. */
     async deleteComment(wsId, taskId, commentId, actor) {
       const removed = await mutate((data) => {
-        const { task } = findTask(findWs(data, wsId), taskId);
+        const { task } = findTask(editWs(data, wsId), taskId);
         const c = task.comments.find((x) => x.id === commentId);
         if (!c) throw new Error("Comment not found.");
         if (!samePerson(c.author, actor) && !isAdmin(actor)) throw new Error("You can only delete your own comments.");
@@ -461,15 +506,14 @@
 
     /* ---------- Attachments (task-level) ---------- */
     async addAttachments(wsId, taskId, files, author) {
-      const pre = findWs(load(), wsId);
-      requireMember(pre, author, "attach files");
+      const pre = editWs(load(), wsId, author);
       findTask(pre, taskId);
       const list = checkFiles(files);
       if (!list.length) throw new Error("Choose a file to attach.");
       const metas = await saveFiles(list, author);
       try {
         return await mutate((data) => {
-          const { task } = findTask(findWs(data, wsId), taskId);
+          const { task } = findTask(editWs(data, wsId), taskId);
           task.attachments.push(...metas);
           return metas;
         });
@@ -479,7 +523,7 @@
     /** Uploader or admin. (Files attached in a comment are removed by deleting the comment.) */
     async deleteAttachment(wsId, taskId, fileId, actor) {
       await mutate((data) => {
-        const { task } = findTask(findWs(data, wsId), taskId);
+        const { task } = findTask(editWs(data, wsId), taskId);
         const a = task.attachments.find((x) => x.id === fileId);
         if (!a) throw new Error("Attachment not found.");
         if (!samePerson(a.author, actor) && !isAdmin(actor)) throw new Error("Only the person who attached it can delete it.");
@@ -494,13 +538,13 @@
     },
 
     /* ---------- Google Drive folder link (any workspace member) ---------- */
-    canSetDrive(ws, user) { return isAdmin(user) || isMember(normalise(ws), user); },
+    canSetDrive(ws, user) { return canEdit(normalise(ws), me(user)); },
 
     /** name = folder name shown on the button (optional; typed by the member). */
     setTaskDrive(wsId, taskId, url, actor, name) {
       return mutate((data) => {
         const ws = findWs(data, wsId);
-        requireMember(ws, actor, "change the Drive link");
+        requireEdit(ws, me(actor));
         const { task } = findTask(ws, taskId);
         task.driveUrl = cleanDriveUrl(url);
         task.driveName = task.driveUrl ? clean(name, 80) : "";
@@ -512,7 +556,7 @@
 
     async deleteTask(wsId, taskId) {
       const ids = await mutate((data) => {
-        const ws = findWs(data, wsId);
+        const ws = editWs(data, wsId);
         const { section, index, task } = findTask(ws, taskId);
         section.tasks.splice(index, 1);
         return taskFileIds(task);

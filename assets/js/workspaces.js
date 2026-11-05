@@ -18,6 +18,13 @@
   const counter = document.getElementById("ws-name-counter");
   const createBtn = document.getElementById("ws-create");
   const el = UI.el;
+  const canCreate = Roles.canCreateWorkspace(session.user);
+  if (!canCreate) {
+    document.getElementById("new-ws-btn").hidden = true;
+    document.getElementById("empty-new-btn").hidden = true;
+    empty.querySelector("h2").textContent = "No workspaces assigned to you yet";
+    empty.querySelector("p").textContent = "Ask a Super Admin or Admin to add you to a workspace under Members.";
+  }
 
   function card(ws) {
     const pct = ws.taskCount ? Math.round((ws.completedCount / ws.taskCount) * 100) : 0;
@@ -41,13 +48,14 @@
   }
 
   async function render() {
-    const list = await Store.listWorkspaces();
+    const list = await Store.listWorkspaces(session.user);
     grid.replaceChildren(...list.map(card));
     empty.hidden = list.length > 0;
     grid.hidden = list.length === 0;
     subtitle.textContent = list.length
       ? list.length + (list.length === 1 ? " workspace" : " workspaces") + " · pick one to open its board."
-      : "Pick a workspace to open its board, or create a new one.";
+      : canCreate ? "Pick a workspace to open its board, or create a new one."
+        : "You'll see a workspace here once a Super Admin or Admin adds you to it.";
   }
 
   function setError(msg) {

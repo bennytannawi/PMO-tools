@@ -433,3 +433,58 @@ dialog.dialog--wide { width: min(720px, calc(100vw - 32px)); max-height: calc(10
 /* Drive box states */
 .drive-edit input:disabled { background: var(--bg); color: var(--text-muted); cursor: not-allowed; }
 .drive-edit .button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---------- Roles ---------- */
+[hidden] { display: none !important; }
+.role-badge {
+  font-size: 11px; font-weight: 600; line-height: 1; padding: 4px 8px; border-radius: 999px;
+  background: var(--col-bg); color: var(--text-muted); white-space: nowrap;
+}
+.role-badge--super_admin { background: var(--primary-soft); color: var(--primary); }
+.role-badge--admin { background: rgba(14, 116, 144, .14); color: #0e7490; }
+.role-badge--guest { background: rgba(217, 119, 6, .14); color: #b45309; }
+@media (prefers-color-scheme: dark) {
+  .role-badge--admin { color: #67e8f9; }
+  .role-badge--guest { color: #fbbf24; }
+}
+@media (max-width: 640px) { .topbar__user .name { display: none; } }
+
+/* Guests: view only */
+.is-readonly .column__foot,
+.is-readonly #task-delete,
+.is-readonly #task-dialog [type="submit"],
+.is-readonly .td__note,
+.is-readonly .sub-add,
+.is-readonly #att-drop,
+.is-readonly #task-due-clear,
+.is-readonly .checklist .icon-btn { display: none !important; }
+.is-readonly .task { cursor: pointer; }
+
+/* Users page */
+.users-layout[hidden], .panel-card[hidden] { display: none; }
+.users-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+@media (max-width: 900px) { .users-layout { grid-template-columns: 1fr; } }
+.panel-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.panel-card h2 { font-size: 16px; margin: 0 0 4px; }
+.panel-card > p { color: var(--text-muted); font-size: 14px; margin: 0 0 16px; }
+.panel-card select, .panel-card input[type="text"], .panel-card input[type="email"] { width: 100%; }
+.user-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.user-table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 0 10px 10px; border-bottom: 1px solid var(--border); }
+.user-table td { padding: 12px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.user-table tr:last-child td { border-bottom: 0; }
+.user-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.user-cell__name { font-weight: 600; }
+.user-cell__email { color: var(--text-muted); font-size: 13px; overflow-wrap: anywhere; }
+.status { font-size: 12px; color: var(--text-muted); }
+.status--invited { color: #b45309; }
+.user-table select { height: 34px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.role-guide { margin: 16px 0 0; padding: 0; list-style: none; font-size: 13px; }
+.role-guide li { padding: 8px 0; border-top: 1px solid var(--border); color: var(--text-muted); }
+.role-guide strong { color: var(--text); display: block; }
+@media (max-width: 640px) {
+  .user-table thead { display: none; }
+  .user-table, .user-table tbody, .user-table tr, .user-table td { display: block; width: 100%; }
+  .user-table tr { padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .user-table td { border: 0; padding: 4px 0; }
+}
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

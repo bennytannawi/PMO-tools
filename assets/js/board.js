@@ -22,19 +22,23 @@
   const DEFAULT_COLORS = ["var(--sec-todo)", "var(--sec-progress)", "var(--sec-review)", "var(--sec-done)"];
 
   let ws = null;
+  let editable = false; // false for Guests (view only)
   const ui = { addTaskIn: null, addingSection: false, renaming: null, menuOpen: null };
   let dragId = null;
 
   /* ---------- Load ---------- */
   async function load() {
     try {
-      ws = await Store.getWorkspace(wsId);
+      ws = await Store.getWorkspace(wsId, session.user);
+      editable = Store.canEdit(ws, session.user);
+      document.body.classList.toggle("is-readonly", !editable);
     } catch (e) {
-      titleEl.textContent = "Workspace not found";
-      document.title = "Not found · PMO Tools";
+      const denied = /access/i.test(e.message || "");
+      titleEl.textContent = denied ? "No access" : "Workspace not found";
+      document.title = (denied ? "No access" : "Not found") + " · PMO Tools";
       board.replaceChildren(el("div", { class: "empty", style: "flex:1" }, [
-        el("h2", { text: "This workspace doesn't exist" }),
-        el("p", { text: "It may have been removed, or the link is incomplete." }),
+        el("h2", { text: denied ? "You're not a member of this workspace" : "This workspace doesn't exist" }),
+        el("p", { text: denied ? "Ask a Super Admin or Admin to add you under Members." : "It may have been removed, or the link is incomplete." }),
         el("a", { class: "button button--primary", href: "workspaces.html", text: "Back to workspaces" }),
       ]));
       return false;
@@ -56,12 +60,12 @@
     document.title = ws.name + " · PMO Tools";
     const total = ws.sections.reduce((n, s) => n + s.tasks.length, 0);
     const done = ws.sections.filter((s) => s.isDone).reduce((n, s) => n + s.tasks.length, 0);
-    statsEl.textContent = total + (total === 1 ? " task" : " tasks") + " · " + done + " completed";
+    statsEl.textContent = total + (total === 1 ? " task" : " tasks") + " · " + done + " completed" + (editable ? "" : " · View only");
     renderMemberAvatars();
 
     let defaultIdx = 0;
     const cols = ws.sections.map((s) => column(s, s.isDefault ? DEFAULT_COLORS[defaultIdx++] : "var(--sec-custom)"));
-    cols.push(addSectionColumn());
+    if (editable) cols.push(addSectionColumn());
     board.replaceChildren(...cols);
 
     const focus = board.querySelector("[data-autofocus]");
@@ -98,7 +102,7 @@
       el("h2", { class: "column__name", style: "margin:0;font-size:14px", text: section.name, title: section.name }),
       el("span", { class: "column__count", text: String(section.tasks.length), "aria-label": section.tasks.length + " tasks" }),
     ]);
-    if (!section.isDefault) head.append(sectionMenu(section));
+    if (!section.isDefault && editable) head.append(sectionMenu(section));
     return head;
   }
 
@@ -129,7 +133,7 @@
   function taskCard(task, section) {
     // A div (not a button) so the PIC chip inside it can be its own button.
     const card = el("div", {
-      class: "task", role: "button", tabindex: "0", draggable: "true", "data-task": task.id,
+      class: "task", role: "button", tabindex: "0", draggable: editable ? "true" : "false", "data-task": task.id,
       "aria-label": "Open task " + task.title,
       onclick: (e) => { if (!e.target.closest(".pic")) openTask(task.id); },
       onkeydown: (e) => { if (e.target === card && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openTask(task.id); } },
@@ -205,6 +209,7 @@
   function closePicMenu() { if (picMenu) { picMenu.remove(); picMenu = null; } }
 
   function openPicMenu(task, anchor) {
+    if (!editable) { openTask(task.id); return; }
     closePicMenu();
     const pick = (member) => { closePicMenu(); run(() => Store.updateTask(ws.id, task.id, { assignee: member })); };
     const items = [el("div", { class: "pic-menu__title", text: "Assign PIC" })];
@@ -371,27 +376,53 @@
     ])));
 
     if (!canManage) {
-      mAdd.replaceChildren(el("p", { class: "hint", text: "Only workspace members can add people." }));
+      mAdd.replaceChildren(el("p", { class: "hint", text: "Only Super Admins and Admins can add or remove members." }));
       return;
     }
-    const name = el("input", { type: "text", maxlength: "80", placeholder: "Name", autocomplete: "off", "aria-label": "Member name" });
-    const email = el("input", { type: "email", maxlength: "120", placeholder: "email@company.com", autocomplete: "off", "aria-label": "Member email" });
-    const err = el("p", { class: "field__error" });
-    const submit = async () => {
-      try {
-        await Store.addMember(ws.id, { name: name.value, email: email.value }, me);
-        await refresh(); renderMembersDialog();
-        mAdd.querySelector("input").focus();
-      } catch (e2) { err.textContent = e2.message; }
-    };
-    [name, email].forEach((i) => i.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }));
-    [name, email].forEach((i) => i.addEventListener("input", () => { err.textContent = ""; }));
-    mAdd.replaceChildren(el("div", { class: "member-add" }, [
-      el("h3", { text: "Add a member" }),
-      el("div", { class: "member-add__row" }, [name, email,
-        el("button", { type: "button", class: "button button--primary button--sm", text: "Add", onclick: submit })]),
-      err,
-    ]));
+    // Pick from people who have a PMO Tools account (invited on the Users page).
+    mAdd.replaceChildren(el("p", { class: "hint", text: "Loading people…" }));
+    loadDirectory().then((people) => {
+      if (!mDialog.open) return;
+      const err = el("p", { class: "field__error" });
+      const available = people.filter((p) => !ws.members.some((m) => Store.samePerson(m, p)));
+      if (people.error || !available.length) {
+        mAdd.replaceChildren(el("div", { class: "member-add" }, [
+          el("h3", { text: "Add a member" }),
+          el("p", { class: "hint", text: people.error ? "Couldn't load the people list: " + people.error
+            : "Everyone with an account is already a member." }),
+          el("p", { class: "hint" }, [document.createTextNode("Need someone new? "),
+            el("a", { class: "link", href: "users.html", text: "Invite them on the Users page" }), document.createTextNode(" first.")]),
+        ]));
+        return;
+      }
+      const select = el("select", { "aria-label": "Person to add" }, [el("option", { value: "", text: "Choose a person…" }),
+        ...available.map((p, i) => el("option", { value: String(i),
+          text: (p.name || p.email) + " — " + p.email + " (" + Roles.LABELS[p.role] + (p.status === "invited" ? ", invited" : "") + ")" }))]);
+      select.addEventListener("change", () => { err.textContent = ""; });
+      const submit = async () => {
+        const p = available[Number(select.value)];
+        if (!select.value || !p) { err.textContent = "Choose a person to add."; return; }
+        try {
+          await Store.addMember(ws.id, { name: p.name || p.email.split("@")[0], email: p.email }, me);
+          await refresh(); renderMembersDialog();
+        } catch (e2) { err.textContent = e2.message; }
+      };
+      mAdd.replaceChildren(el("div", { class: "member-add" }, [
+        el("h3", { text: "Add a member" }),
+        el("div", { class: "member-add__row" }, [select,
+          el("button", { type: "button", class: "button button--primary button--sm", text: "Add", onclick: submit })]),
+        err,
+        el("p", { class: "hint" }, [document.createTextNode("Not listed? "),
+          el("a", { class: "link", href: "users.html", text: "Invite them on the Users page" }), document.createTextNode(" first.")]),
+      ]));
+    });
+  }
+
+  let directory = null;
+  function loadDirectory() {
+    if (directory) return Promise.resolve(directory);
+    return Auth.adminCall("list").then((r) => (directory = r.users))
+      .catch((e) => { const d = []; d.error = e.message; return d; });
   }
 
   membersBtn.addEventListener("click", () => { renderMembersDialog(); mDialog.showModal(); });
@@ -474,7 +505,7 @@
     subBar.hidden = !subs.length;
     subBar.firstElementChild.style.width = (subs.length ? Math.round(doneN / subs.length * 100) : 0) + "%";
     subList.replaceChildren(...subs.map((sub) => {
-      const box = el("input", { type: "checkbox", id: "sub-" + sub.id, checked: sub.done,
+      const box = el("input", { type: "checkbox", id: "sub-" + sub.id, checked: sub.done, disabled: !editable,
         onchange: () => live(() => Store.updateSubtask(ws.id, task.id, sub.id, { done: box.checked })) });
       return el("li", { class: "checklist__item" + (sub.done ? " is-done" : "") }, [
         box,
@@ -571,7 +602,7 @@
     attCount.textContent = all.length ? String(all.length) : "";
     attList.replaceChildren(...all.map(({ a, source }) => fileRow(a, {
       stamp: true, source,
-      onDelete: !source && (Store.samePerson(a.author, me) || me.role === "admin")
+      onDelete: !source && editable && (Store.samePerson(a.author, me) || Store.canModerate(me))
         ? () => { if (confirm("Delete “" + a.name + "”?")) live(() => Store.deleteAttachment(ws.id, task.id, a.id, me)); }
         : null,
     })));
@@ -607,9 +638,9 @@
       const rel = relative(c.createdAt);
       const editing = editingComment === c.id;
       const actions = [];
-      if (mine && !editing) actions.push(el("button", { type: "button", class: "link-btn link-btn--edit", text: "Edit",
+      if (mine && editable && !editing) actions.push(el("button", { type: "button", class: "link-btn link-btn--edit", text: "Edit",
         onclick: () => { editingComment = c.id; renderComments(currentTask().task); } }));
-      if ((mine || me.role === "admin") && !editing) actions.push(el("button", { type: "button", class: "link-btn", text: "Delete",
+      if ((mine || Store.canModerate(me)) && editable && !editing) actions.push(el("button", { type: "button", class: "link-btn", text: "Delete",
         onclick: () => { if (confirm("Delete this comment?")) live(() => Store.deleteComment(ws.id, task.id, c.id, me)); } }));
 
       let content;
@@ -654,8 +685,8 @@
       ]);
     }) : [el("li", { class: "comments__empty", text: "No comments yet." })]));
 
-    if (!Store.isMember(ws, me) && me.role !== "admin") {
-      cmtComposer.replaceChildren(el("p", { class: "hint", text: "Only members of this workspace can comment. Ask a member to add you under Members." }));
+    if (!editable) {
+      cmtComposer.replaceChildren(el("p", { class: "hint", text: "You have view-only (Guest) access, so you can't comment or make changes." }));
       return;
     }
     if (draft.taskId !== task.id) draft = { taskId: task.id, text: "", files: [] };
@@ -800,8 +831,11 @@
     updateDueHint();
     tMeta.textContent = "Created " + formatStamp(task.createdAt) + (task.createdBy ? " by " + task.createdBy : "");
     renderLive();
+    [tTitle, tDesc].forEach((i) => { i.readOnly = !editable; });
+    [tSection, tPic, tDue, subInput].forEach((i) => { i.disabled = !editable; });
+    document.getElementById("task-cancel").textContent = editable ? "Cancel" : "Close";
     dialog.showModal();
-    tTitle.focus();
+    if (editable) tTitle.focus(); else document.getElementById("task-close").focus();
   }
 
   /* Due date: chosen from the calendar picker, not typed. */

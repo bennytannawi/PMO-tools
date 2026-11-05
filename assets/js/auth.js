@@ -15,9 +15,13 @@
  *   https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js
  *   assets/js/config.js
  *
- * Roles: a user is "admin" when their app_metadata.role is "admin" (set in SQL,
- * see README); everyone else is "member". Display name comes from
- * user_metadata.name, else the part of the email before "@".
+ * Roles live in Supabase app_metadata.role (users can't change it themselves):
+ *   super_admin  all workspaces · edit all cards · invite users · change roles
+ *   admin        assigned workspaces · edit all cards · invite users
+ *   member       assigned workspaces · edit all cards
+ *   guest        assigned workspaces · view only
+ * Missing/unknown role = member. Display name comes from user_metadata.name,
+ * else the part of the email before "@".
  */
 (function (global) {
   "use strict";
@@ -31,6 +35,36 @@
     HOME_PAGE: "workspaces.html",
     RESET_PAGE: "reset-password.html",
   };
+
+  /* ---------- Roles ---------- */
+  const ROLE_LIST = ["super_admin", "admin", "member", "guest"];
+  const Roles = {
+    LIST: ROLE_LIST,
+    LABELS: { super_admin: "Super Admin", admin: "Admin", member: "Member", guest: "Guest" },
+    DESCRIPTIONS: {
+      super_admin: "All workspaces · edit all cards · invite users · change roles",
+      admin: "Assigned workspaces · edit all cards · invite users",
+      member: "Assigned workspaces · edit all cards",
+      guest: "Assigned workspaces · view only",
+    },
+    normalize(r) { return ROLE_LIST.includes(r) ? r : "member"; },
+    of(user) { return Roles.normalize(user && user.role); },
+    label(user) { return Roles.LABELS[Roles.of(user)]; },
+    isSuperAdmin(user) { return Roles.of(user) === "super_admin"; },
+    seesAllWorkspaces(user) { return Roles.of(user) === "super_admin"; },
+    canEditCards(user) { return Roles.of(user) !== "guest"; },
+    canInvite(user) { return ["super_admin", "admin"].includes(Roles.of(user)); },
+    canManageWorkspaceMembers(user) { return ["super_admin", "admin"].includes(Roles.of(user)); },
+    canCreateWorkspace(user) { return ["super_admin", "admin"].includes(Roles.of(user)); },
+    canModerate(user) { return ["super_admin", "admin"].includes(Roles.of(user)); }, // delete others' comments/files
+    canChangeRoles(user) { return Roles.of(user) === "super_admin"; },
+    /** Roles this user may give when inviting. Admins can't create Super Admins. */
+    invitable(user) {
+      const r = Roles.of(user);
+      return r === "super_admin" ? ROLE_LIST.slice() : r === "admin" ? ["admin", "member", "guest"] : [];
+    },
+  };
+  global.Roles = Roles;
 
   /* ---------- Storage helpers (never throw) ---------- */
   function safe(fn, fallback) { try { return fn(); } catch (e) { return fallback; } }
@@ -84,7 +118,7 @@
       id: u && u.id,
       name: String(meta.name || meta.full_name || fromEmail || "User").slice(0, 80),
       email,
-      role: app.role === "admin" ? "admin" : "member",
+      role: Roles.normalize(app.role),
     };
   }
 
@@ -171,12 +205,23 @@
         global.location.replace(CONFIG.LOGIN_PAGE + "?next=" + next);
         return null;
       }
-      // In the background, confirm Supabase still recognises this sign-in
-      // (e.g. the account was removed). If not, sign out.
+      // In the background, confirm with Supabase that this account still exists
+      // and pick up role / name changes. Signs out if the account was removed.
       setTimeout(() => {
         try {
-          sb().auth.getSession().then((r) => {
-            if (!r.data || !r.data.session) Auth.logout();
+          sb().auth.getSession().then(async (r) => {
+            if (!r.data || !r.data.session) return Auth.logout();
+            const u = await sb().auth.getUser();
+            if (u.error && (u.error.status === 401 || u.error.status === 403 || u.error.status === 404)) return Auth.logout();
+            if (!u.data || !u.data.user) return;
+            const fresh = toUser(u.data.user);
+            const cur = readSession();
+            if (cur && (fresh.role !== cur.user.role || fresh.name !== cur.user.name)) {
+              cur.user = fresh; // keep the same expiry and storage place
+              const inLocal = safe(() => !!ls().getItem(CONFIG.SESSION_KEY), false);
+              safe(() => (inLocal ? ls() : ss()).setItem(CONFIG.SESSION_KEY, JSON.stringify(cur)));
+              global.location.reload(); // re-render with the new permissions
+            }
           }).catch(() => { /* offline: keep working */ });
         } catch (e) { /* library not loaded: keep local session */ }
       }, 0);
@@ -211,6 +256,32 @@
       safe(() => global.history.replaceState(null, "", global.location.pathname));
       return { type: type === "invite" || type === "signup" ? "invite" : "recovery", user: toUser(res.data.session.user) };
     },
+
+    /** Current access token (for calling server functions), or null. */
+    async accessToken() {
+      try { const r = await sb().auth.getSession(); return r.data.session ? r.data.session.access_token : null; }
+      catch (e) { return null; }
+    },
+
+    /** Call the manage-users server function. Rejects with a friendly Error. */
+    async adminCall(action, payload) {
+      const token = await Auth.accessToken();
+      if (!token) throw new Error("Your session has ended. Please sign in again.");
+      const cfg = global.PMO_CONFIG;
+      let res;
+      try {
+        res = await fetch(cfg.SUPABASE_URL + "/functions/v1/manage-users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + token, apikey: cfg.SUPABASE_KEY },
+          body: JSON.stringify(Object.assign({ action }, payload || {})),
+        });
+      } catch (e) { throw new Error("Can't reach the server. Check your connection and try again."); }
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Request failed (" + res.status + "). Please try again.");
+      return body;
+    },
+
+    resetPageUrl() { return pageUrl(CONFIG.RESET_PAGE); },
 
     /** On reset-password.html: save the new password and sign the user in. */
     async setPassword(password) {
