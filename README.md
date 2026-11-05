@@ -40,12 +40,15 @@ Create a simple PMO tools similar to Asana for the team
 ## Project structure
 ```
 index.html              Login page
+reset-password.html     Set password (invitation / reset links land here)
 workspaces.html         Workspaces list + create (landing page after login)
 workspace.html          Kanban board for one workspace
 dashboard.html          Redirect to workspaces.html (kept for old links)
 assets/css/login.css    Login styles + shared colour tokens (light/dark)
 assets/css/app.css      Styles for signed-in pages
-assets/js/auth.js       Auth service — the only file that talks to the auth backend
+assets/js/config.js     Supabase project URL + publishable key
+assets/js/auth.js       Auth service — the only file that talks to Supabase Auth
+assets/js/reset-password.js  Set-password page (invites + password reset)
 assets/js/store.js      Data store — the only file that reads/writes workspace data
 assets/js/common.js     Shared helpers (top bar, toast, element builder)
 assets/js/login.js      Login form behaviour
@@ -60,33 +63,49 @@ python3 -m http.server 8000
 ```
 then open http://localhost:8000.
 
-## Demo accounts (demo mode only)
-| Email              | Password      | Role   |
-|--------------------|---------------|--------|
-| admin@pmo.local    | Admin#2026    | admin  |
-| member@pmo.local   | Member#2026   | member |
+## Sign-in (Supabase)
+Accounts are managed in Supabase — there are **no passwords in this code**.
+`assets/js/config.js` holds the project URL and the *publishable* key (both are
+public by design). Never put the secret / `service_role` key in this repo.
 
-> ⚠️ Demo mode checks passwords in the browser and is **not secure**. It is for
-> UI testing only. Switch to a real backend before sharing with the team.
+- **Login** (`index.html`) — email + password via Supabase.
+- **Forgot password** — emails a reset link (the page never reveals whether an
+  email has an account).
+- **Set password** (`reset-password.html`) — where invitation and reset links land;
+  the person chooses a password and is signed in.
 
-## Connecting a real backend
-Open `assets/js/auth.js` and set:
-```js
-MODE: "api",
-API_BASE_URL: "https://your-backend/api",
+### One-time Supabase settings (dashboard)
+1. **Authentication → Sign In / Providers → Email**: enabled. Turn **off**
+   *Allow new users to sign up* so only invited people can get in.
+2. **Authentication → URL Configuration**:
+   - *Site URL*: `https://bennytannawi.github.io/PMO-tools/`
+   - *Redirect URLs*: add `https://bennytannawi.github.io/PMO-tools/reset-password.html`
+     (and `http://localhost:8000/reset-password.html` for local testing).
+
+### Add a team member
+**Authentication → Users → Add user → Send invitation**, enter their work email.
+They get an email, click the link, choose a password, and land in PMO Tools.
+
+To give someone a display name or the admin role, run in **SQL Editor**:
+```sql
+update auth.users
+set raw_user_meta_data = raw_user_meta_data || '{"name":"Benny Tannawi"}',
+    raw_app_meta_data  = raw_app_meta_data  || '{"role":"admin"}'
+where email = 'name@company.com';
 ```
-The page will `POST {email, password}` to `/auth/login` and expects:
-```json
-{ "token": "...", "user": { "name": "...", "email": "...", "role": "admin" } }
-```
-Then delete the `DEMO_USERS` list. Password hashing, rate limiting and
-account management must live on the server.
+(Role changes apply the next time that person signs in.) Without a name, the
+part of the email before "@" is shown. Remove someone with **Users → ⋯ → Delete user**.
+
+### Email limits
+Supabase's built-in email sender allows only a few emails per hour and is meant
+for testing. Before inviting the whole team, set up your own SMTP under
+**Authentication → Emails → SMTP Settings** (e.g. Google Workspace, Resend, SendGrid).
 
 > ⚠️ The member-only comment rule and the PIC-only Drive rule are enforced in
-> the browser in demo mode. With a real backend, enforce them on the server too.
+> the browser for now. When boards move to Supabase, enforce them with Row Level Security.
 
 ## Where data is stored (important)
-In demo mode, workspaces and tasks are saved in **this browser's localStorage**.
+For now, workspaces and tasks are saved in **this browser's localStorage**.
 Each person/browser sees only their own data — the team does **not** share
 boards yet, and clearing browser data deletes them. To share across the team,
 connect a backend and replace the method bodies in `assets/js/store.js`
@@ -105,6 +124,8 @@ files to cloud storage (e.g. S3, Google Cloud Storage or Supabase Storage) insid
 
 ## Protecting a new page
 ```html
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+<script src="assets/js/config.js"></script>
 <script src="assets/js/auth.js"></script>
 <script>const session = Auth.requireAuth();</script>
 ```

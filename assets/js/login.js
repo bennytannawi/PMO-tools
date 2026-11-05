@@ -19,6 +19,13 @@
   let failedAttempts = 0;
   let lockedUntil = 0;
 
+  // Invitation / password-reset emails may land here (Supabase "Site URL").
+  // Forward them, with their tokens, to the set-password page.
+  if (/(^|[#&])(type=(invite|recovery|signup)|error_description=)/.test(window.location.hash)) {
+    window.location.replace(Auth.config.RESET_PAGE + window.location.hash);
+    return;
+  }
+
   // Already signed in? Go straight to the app.
   if (window.Auth && Auth.getSession()) {
     window.location.replace(nextPage());
@@ -121,9 +128,27 @@
     }
   });
 
-  document.getElementById("forgot-link").addEventListener("click", (e) => {
+  let resetBusy = false;
+  document.getElementById("forgot-link").addEventListener("click", async (e) => {
     e.preventDefault();
-    showAlert("Password reset isn't set up yet. Please contact your PMO admin to reset your password.", "info");
+    if (resetBusy) return;
+    hideAlert();
+    const emailVal = email.value.trim();
+    if (!emailVal || !EMAIL_RE.test(emailVal)) {
+      setFieldError(email, "Enter your work email here first, then click “Forgot password?” again.");
+      email.focus();
+      return;
+    }
+    setFieldError(email, "");
+    resetBusy = true;
+    try {
+      await Auth.requestPasswordReset(emailVal);
+      showAlert("If " + emailVal + " has an account, we've emailed a link to set a new password. Check your inbox (and spam folder).", "info");
+    } catch (err) {
+      showAlert(err.message || "Couldn't send the reset email. Please try again.");
+    } finally {
+      resetBusy = false;
+    }
   });
 
   document.getElementById("request-access-link").addEventListener("click", (e) => {
