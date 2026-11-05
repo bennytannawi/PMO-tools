@@ -30,7 +30,8 @@ Create a simple PMO tools similar to Asana for the team
     (e.g. *31 Oct 2026, 11:49 · 5 min ago*). Authors can **edit** their own comments
     (shown as *(edited 5 Nov 2026, 15:40)*; the original time stamp stays) and delete them;
     admins can delete any comment.
-  - **Google Drive folder** — the PIC pastes the folder link (must be a
+  - **Google Drive folder** — the link box is always shown; it unlocks once a PIC is chosen
+    (tap *Make me the PIC* to assign yourself). The PIC pastes the folder link (must be a
     `https://drive.google.com/` link); everyone sees an *Open Google Drive folder* button.
     Admins can also set it as a fallback if the PIC is unavailable.
   - Name, description, section and PIC save with **Save**; subtasks, comments and the
