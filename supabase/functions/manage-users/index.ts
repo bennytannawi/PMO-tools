@@ -7,6 +7,7 @@
  * POST { action, ... } with "Authorization: Bearer <user access token>"
  *   list                              Super Admin, Admin
  *   invite   { email, name, role, redirectTo }   Super Admin (any role), Admin (not super_admin)
+ *   resend   { id, redirectTo }       Super Admin, Admin (people who haven't accepted yet)
  *   set_name { id, name }             Super Admin, Admin
  *   set_role { id, role }             Super Admin only (not own role)
  *   remove   { id }                   Super Admin only (not self)
@@ -100,6 +101,27 @@ Deno.serve(async (req) => {
         });
         if (roleErr) throw roleErr;
         return reply(200, { user: view(upd.user) });
+      }
+
+      case "resend": {
+        const { data: t, error: tErr } = await admin.auth.admin.getUserById(String(body.id));
+        if (tErr || !t?.user) return fail(404, "User not found.");
+        if (t.user.last_sign_in_at) return fail(400, "This person has already accepted. They can use “Forgot password?” on the sign-in page.");
+        const redirectTo = typeof body.redirectTo === "string" && /^https?:\/\//.test(body.redirectTo) ? body.redirectTo : undefined;
+        const email = t.user.email!;
+        // Re-sending an invite works for people who never accepted; if Supabase
+        // refuses, send a set-password (recovery) email instead — same result.
+        let { error } = await admin.auth.admin.inviteUserByEmail(email, { data: t.user.user_metadata || {}, redirectTo });
+        if (error && /already.*(registered|exists)/i.test(error.message)) {
+          ({ error } = await admin.auth.resetPasswordForEmail(email, { redirectTo }));
+        }
+        if (error) {
+          if (error.status === 429 || /rate limit|seconds/i.test(error.message)) {
+            return fail(429, "Email limit reached. Wait a minute and try again (Supabase's built-in email sends only a few per hour — set up SMTP for more).");
+          }
+          throw error;
+        }
+        return reply(200, { ok: true, email });
       }
 
       case "set_name": {

@@ -67,6 +67,16 @@
 
   function actions(u, isMe) {
     const out = [];
+    if (u.status === "invited") out.push(el("button", { type: "button", class: "link-btn", text: "Resend invite",
+      onclick: async (e) => {
+        const b = e.currentTarget;
+        b.disabled = true; b.textContent = "Sending…";
+        try {
+          await Auth.adminCall("resend", { id: u.id, redirectTo: Auth.resetPageUrl() });
+          UI.toast("New invitation link sent to " + u.email + ".");
+        } catch (err) { UI.toast(err.message); }
+        b.disabled = false; b.textContent = "Resend invite";
+      } }));
     const canRename = isSuper || u.role !== "super_admin";
     if (canRename) out.push(el("button", { type: "button", class: "link-btn", text: "Rename",
       onclick: async () => {
